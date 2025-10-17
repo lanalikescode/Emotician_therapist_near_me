@@ -55,6 +55,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 500);
     }
 
+    let markers = [];
+
+    function clearMarkers() {
+        markers.forEach(m => m.setMap(null));
+        markers = [];
+    }
+
     function renderResults(items) {
         resultsList.innerHTML = '';
         if (!items || items.length === 0) {
@@ -63,15 +70,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         items.forEach(item => {
             const li = document.createElement('li');
-            li.textContent = item.name + (item.address ? ' — ' + item.address : '');
+            li.className = 'emdr-result-item';
+            const imgHtml = item.photo ? `<img src="${item.photo}" alt="${item.name}" class="emdr-result-photo"/>` : '';
+            const phoneHtml = item.phone ? `<div class="emdr-result-phone">${item.phone}</div>` : '';
+            const emailHtml = item.email ? `<div class="emdr-result-email">${item.email}</div>` : '';
+            li.innerHTML = `
+                <div class="emdr-result-left">${imgHtml}</div>
+                <div class="emdr-result-main">
+                    <div class="emdr-result-name">${item.name}</div>
+                    <div class="emdr-result-address">${item.address || ''}</div>
+                    ${phoneHtml}
+                    ${emailHtml}
+                </div>
+            `;
             resultsList.appendChild(li);
         });
     }
 
     function placeMarkers(locations) {
         if (!map || !locations) return;
+        clearMarkers();
         locations.forEach(loc => {
-            new google.maps.Marker({ position: loc, map: map });
+            const marker = new google.maps.Marker({ position: loc, map: map });
+            markers.push(marker);
         });
     }
 

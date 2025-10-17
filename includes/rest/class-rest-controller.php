@@ -56,16 +56,52 @@ class EMDR_Rest_Controller {
                 $body = wp_remote_retrieve_body( $resp );
                 $data = json_decode( $body, true );
                 if ( ! empty( $data['results'] ) ) {
+                    // For each place result, fetch Place Details to get phone, photos, website
+                    $count = 0;
                     foreach ( $data['results'] as $r ) {
+                        if ( $count++ >= 20 ) break; // limit details requests
+                        $place_id = $r['place_id'] ?? '';
                         $item = [
                             'source' => 'google_places',
                             'name' => $r['name'] ?? '',
                             'address' => $r['formatted_address'] ?? '',
-                            'place_id' => $r['place_id'] ?? '',
+                            'place_id' => $place_id,
+                            'phone' => '',
+                            'website' => '',
+                            'photo' => '',
                         ];
+
+                        // geometry
                         if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
                             $locations[] = [ 'lat' => $r['geometry']['location']['lat'], 'lng' => $r['geometry']['location']['lng'] ];
                         }
+
+                        if ( ! empty( $place_id ) ) {
+                            $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photo,geometry&key=' . rawurlencode($places_api_key);
+                            $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
+                            if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
+                                $dbody = wp_remote_retrieve_body( $dresp );
+                                $ddata = json_decode( $dbody, true );
+                                if ( ! empty( $ddata['result'] ) ) {
+                                    $res = $ddata['result'];
+                                    $item['phone'] = $res['formatted_phone_number'] ?? '';
+                                    $item['website'] = $res['website'] ?? '';
+                                    // photo handling: get first photo reference and build photo URL
+                                    if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
+                                        $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
+                                        if ( $photo_ref ) {
+                                            $photo_url = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
+                                            $item['photo'] = $photo_url;
+                                        }
+                                    }
+                                    // override geometry location if present
+                                    if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
+                                        $locations[] = [ 'lat' => $res['geometry']['location']['lat'], 'lng' => $res['geometry']['location']['lng'] ];
+                                    }
+                                }
+                            }
+                        }
+
                         $results[] = $item;
                     }
                 }
@@ -78,30 +114,47 @@ class EMDR_Rest_Controller {
         if ( ! empty( $query ) ) {
             $npi_url .= '&organization_name=' . rawurlencode( $query );
         }
-        if ( $lat && $lng ) {
-            // NPI supports address search; we'll pass city/state if query contains them, but skip complex reverse geocode here.
-        }
         $npi_resp = wp_remote_get( $npi_url, [ 'timeout' => 10 ] );
         if ( is_array( $npi_resp ) && ! is_wp_error( $npi_resp ) ) {
             $body = wp_remote_retrieve_body( $npi_resp );
             $data = json_decode( $body, true );
             if ( ! empty( $data['results'] ) ) {
+                $count = 0;
                 foreach ( $data['results'] as $r ) {
+                    if ( $count++ >= 20 ) break;
                     $basic = $r['basic'] ?? [];
                     $addresses = $r['addresses'] ?? [];
                     $address_str = '';
-                    $latlng = null;
+                    $phone = '';
                     if ( ! empty( $addresses ) ) {
                         $addr = $addresses[0];
                         $address_str = trim( ($addr['address_1'] ?? '') . ' ' . ($addr['address_2'] ?? '') . ', ' . ($addr['city'] ?? '') . ', ' . ($addr['state'] ?? '') );
+                        $phone = $addr['telephone_number'] ?? '';
                     }
                     $item = [
                         'source' => 'npi',
                         'name' => $basic['organization_name'] ?? ($basic['name'] ?? ''),
                         'address' => $address_str,
+                        'phone' => $phone,
                         'npi' => $r['number'] ?? '',
+                        'photo' => '',
+                        'website' => '',
                     ];
-                    // NPI API doesn't provide lat/lng; skip unless geocoding is added
+
+                    // Try to geocode the NPI address to get lat/lng (if Google API key available)
+                    if ( ! empty( $places_api_key ) && ! empty( $address_str ) ) {
+                        $geocode_url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' . rawurlencode( $address_str ) . '&key=' . rawurlencode( $places_api_key );
+                        $gresp = wp_remote_get( $geocode_url, [ 'timeout' => 10 ] );
+                        if ( is_array( $gresp ) && ! is_wp_error( $gresp ) ) {
+                            $gbody = wp_remote_retrieve_body( $gresp );
+                            $gdata = json_decode( $gbody, true );
+                            if ( ! empty( $gdata['results'][0]['geometry']['location'] ) ) {
+                                $loc = $gdata['results'][0]['geometry']['location'];
+                                $locations[] = [ 'lat' => $loc['lat'], 'lng' => $loc['lng'] ];
+                            }
+                        }
+                    }
+
                     $results[] = $item;
                 }
             }
