@@ -32,27 +32,11 @@ class EMDR_Admin {
             'pluginPage'
         );
 
-        add_settings_field( 
-            'emdr_text_field_0', 
-            __( 'Field 1', 'emdr-therapist-finder' ), 
-            array( $this, 'text_field_0_render' ), 
-            'pluginPage', 
-            'emdr_pluginPage_section' 
-        );
-
-        // API keys for maps/places/NPI
+        // API keys for maps/places (same key) and NPI
         add_settings_field(
             'emdr_map_api_key',
-            __( 'Google Maps API Key', 'emdr-therapist-finder' ),
+            __( 'Google Maps & Places API Key', 'emdr-therapist-finder' ),
             array( $this, 'map_api_key_render' ),
-            'pluginPage',
-            'emdr_pluginPage_section'
-        );
-
-        add_settings_field(
-            'emdr_places_api_key',
-            __( 'Google Places API Key', 'emdr-therapist-finder' ),
-            array( $this, 'places_api_key_render' ),
             'pluginPage',
             'emdr_pluginPage_section'
         );
@@ -67,23 +51,14 @@ class EMDR_Admin {
     }
 
     public function text_field_0_render() {
-        $options = get_option( 'emdr_options' );
-        ?>
-        <input type='text' name='emdr_options[emdr_text_field_0]' value='<?php echo esc_attr( $options['emdr_text_field_0'] ?? '' ); ?>'>
-        <?php
+        // removed unused field
+        return;
     }
 
     public function map_api_key_render() {
         $options = get_option( 'emdr_options' );
         ?>
         <input type='text' name='emdr_options[map_api_key]' value='<?php echo esc_attr( $options['map_api_key'] ?? '' ); ?>'>
-        <?php
-    }
-
-    public function places_api_key_render() {
-        $options = get_option( 'emdr_options' );
-        ?>
-        <input type='text' name='emdr_options[places_api_key]' value='<?php echo esc_attr( $options['places_api_key'] ?? '' ); ?>'>
         <?php
     }
 

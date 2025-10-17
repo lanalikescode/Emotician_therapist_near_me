@@ -37,8 +37,8 @@ class EMDR_Rest_Controller {
         $lng = isset($params['lng']) ? floatval($params['lng']) : null;
 
         $options = get_option('emdr_options', []);
-        $places_api_key = $options['places_api_key'] ?? '';
-        $npi_api_key = $options['npi_api_key'] ?? '';
+    $places_api_key = $options['map_api_key'] ?? ''; // use single Google API key for Maps and Places
+    $npi_api_key = $options['npi_api_key'] ?? '';
 
         $results = [];
         $locations = [];

@@ -11,14 +11,12 @@ class EMDR_Therapist_Finder_Public {
 
         // Localize plugin settings for frontend JS
         $options = get_option( 'emdr_options', [] );
-        $map_api_key = $options['map_api_key'] ?? '';
-        $places_api_key = $options['places_api_key'] ?? '';
-        $npi_api_key = $options['npi_api_key'] ?? '';
+    $map_api_key = $options['map_api_key'] ?? '';
+    $npi_api_key = $options['npi_api_key'] ?? '';
 
         wp_localize_script('emdr-public-script', 'EMDRSettings', [
             'restUrl' => esc_url_raw( rest_url('emdr/v1/') ),
             'mapApiKey' => esc_attr( $map_api_key ),
-            'placesApiKey' => esc_attr( $places_api_key ),
             'npiApiKey' => esc_attr( $npi_api_key ),
         ]);
 
