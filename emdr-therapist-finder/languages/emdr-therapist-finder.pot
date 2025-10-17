@@ -1,0 +1,101 @@
+msgid "EMDR Therapist Finder"
+msgstr ""
+
+msgid "Search for EMDR therapists near you"
+msgstr ""
+
+msgid "No therapists found."
+msgstr ""
+
+msgid "Therapist Name"
+msgstr ""
+
+msgid "Location"
+msgstr ""
+
+msgid "Contact"
+msgstr ""
+
+msgid "View Profile"
+msgstr ""
+
+msgid "Claim this listing"
+msgstr ""
+
+msgid "Report an issue"
+msgstr ""
+
+msgid "Search"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Please enter a location."
+msgstr ""
+
+msgid "Therapist Details"
+msgstr ""
+
+msgid "Specialties"
+msgstr ""
+
+msgid "Languages Spoken"
+msgstr ""
+
+msgid "Accepting New Clients"
+msgstr ""
+
+msgid "Therapist Profile"
+msgstr ""
+
+msgid "Back to Search"
+msgstr ""
+
+msgid "Find an EMDR therapist"
+msgstr ""
+
+msgid "Your search returned no results."
+msgstr ""
+
+msgid "Search Results"
+msgstr ""
+
+msgid "Map"
+msgstr ""
+
+msgid "List"
+msgstr ""
+
+msgid "Search by Name or Location"
+msgstr ""
+
+msgid "Filter by Specialty"
+msgstr ""
+
+msgid "Reset Filters"
+msgstr ""
+
+msgid "Select a therapist to view details."
+msgstr ""
+
+msgid "Contact Information"
+msgstr ""
+
+msgid "Website"
+msgstr ""
+
+msgid "Phone"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "Address"
+msgstr ""
+
+msgid "Therapist Finder"
+msgstr ""
+
+msgid "Find an EMDR therapist near you."
+msgstr ""

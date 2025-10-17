@@ -1,0 +1,25 @@
+{
+  "apiVersion": "1.0",
+  "name": "emdr-search-block",
+  "title": "EMDR Therapist Search",
+  "category": "widgets",
+  "icon": "search",
+  "description": "A block for searching EMDR therapists.",
+  "supports": {
+    "html": false
+  },
+  "attributes": {
+    "searchQuery": {
+      "type": "string",
+      "default": ""
+    },
+    "results": {
+      "type": "array",
+      "default": []
+    }
+  },
+  "textdomain": "emdr-therapist-finder",
+  "editorScript": "file:index.js",
+  "editorStyle": "file:editor.css",
+  "style": "file:public.css"
+}
