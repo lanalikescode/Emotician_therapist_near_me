@@ -11,6 +11,12 @@ class EMDR_Rest_Controller {
             'permission_callback' => '__return_true',
         ]);
 
+        register_rest_route('emdr/v1', '/therapists/test', [
+            'methods' => 'GET',
+            'callback' => [$this, 'test_apis'],
+            'permission_callback' => function() { return current_user_can('manage_options'); },
+        ]);
+
         register_rest_route('emdr/v1', '/therapists/(?P<id>\d+)', [
             'methods' => 'GET',
             'callback' => [$this, 'get_therapist'],
@@ -193,6 +199,19 @@ class EMDR_Rest_Controller {
             return rest_ensure_response(['success' => true]);
         }
         return new WP_Error('no_therapist', 'Therapist not found', ['status' => 404]);
+    }
+
+    // Admin-only: test external APIs using stored keys and a sample query
+    public function test_apis($request) {
+        if ( ! current_user_can('manage_options') ) {
+            return new WP_Error('forbidden', 'Not allowed', ['status' => 403]);
+        }
+
+        $sample_query = $request->get_param('query') ?? 'EMDR therapist los angeles';
+        $fake_request = new WP_REST_Request('GET', '/emdr/v1/therapists');
+        $fake_request->set_query_params([ 'query' => $sample_query, 'lat' => 34.052235, 'lng' => -118.243683 ]);
+        $response = $this->get_therapists($fake_request);
+        return $response;
     }
 }
 ?>

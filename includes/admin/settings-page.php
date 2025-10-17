@@ -34,6 +34,27 @@ class EMDR_Therapist_Finder_Settings_Page {
                 submit_button();
                 ?>
             </form>
+
+            <h2>Diagnostics</h2>
+            <p>Run a live API test using the currently saved API keys (admin only).</p>
+            <button id="emdr-run-test" class="button">Run API test</button>
+            <pre id="emdr-test-output" style="white-space:pre-wrap;background:#f7f7f7;border:1px solid #ddd;padding:10px;margin-top:10px;display:none;"></pre>
+
+            <script>
+            document.getElementById('emdr-run-test').addEventListener('click', function() {
+                const out = document.getElementById('emdr-test-output');
+                out.style.display = 'block';
+                out.textContent = 'Running...';
+                fetch('<?php echo esc_url_raw( rest_url('emdr/v1/therapists/test') ); ?>', { credentials: 'same-origin' })
+                    .then(r => r.json())
+                    .then(data => {
+                        out.textContent = JSON.stringify(data, null, 2);
+                    })
+                    .catch(err => {
+                        out.textContent = 'Error: ' + err;
+                    });
+            });
+            </script>
         </div>
         <?php
     }
