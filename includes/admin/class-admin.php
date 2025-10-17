@@ -75,14 +75,49 @@ class EMDR_Admin {
 
     public function settings_page() {
         ?>
-        <form action='options.php' method='post'>
-            <h2>EMDR Therapist Finder</h2>
-            <?php
-            settings_fields( 'pluginPage' );
-            do_settings_sections( 'pluginPage' );
-            submit_button();
-            ?>
-        </form>
+        <div class="wrap">
+            <form action='options.php' method='post'>
+                <h2>EMDR Therapist Finder</h2>
+                <?php
+                settings_fields( 'pluginPage' );
+                do_settings_sections( 'pluginPage' );
+                submit_button();
+                ?>
+            </form>
+
+            <h2>API Diagnostics</h2>
+            <p>Run a live API test using the currently saved API keys to verify external services are working.</p>
+            <button id="emdr-run-test" class="button">Test API Connections</button>
+            <pre id="emdr-test-output" style="white-space:pre-wrap;background:#f7f7f7;border:1px solid #ddd;padding:10px;margin-top:10px;display:none;max-height:400px;overflow:auto;"></pre>
+
+            <script>
+            jQuery(document).ready(function($) {
+                $('#emdr-run-test').on('click', function() {
+                    const $btn = $(this);
+                    const $out = $('#emdr-test-output');
+                    $btn.prop('disabled', true);
+                    $out.show().text('Running API tests...');
+
+                    $.ajax({
+                        url: '<?php echo esc_url_raw( rest_url('emdr/v1/therapists/test') ); ?>',
+                        method: 'GET',
+                        beforeSend: function ( xhr ) {
+                            xhr.setRequestHeader( 'X-WP-Nonce', '<?php echo wp_create_nonce( 'wp_rest' ); ?>' );
+                        }
+                    })
+                    .done(function(data) {
+                        $out.text(JSON.stringify(data, null, 2));
+                    })
+                    .fail(function(jqXHR, textStatus, errorThrown) {
+                        $out.text('Error: ' + textStatus + '\n' + errorThrown);
+                    })
+                    .always(function() {
+                        $btn.prop('disabled', false);
+                    });
+                });
+            });
+            </script>
+        </div>
         <?php
     }
 }
