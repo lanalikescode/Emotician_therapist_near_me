@@ -106,10 +106,28 @@ class EMDR_Admin {
                         }
                     })
                     .done(function(data) {
-                        $out.text(JSON.stringify(data, null, 2));
+                        let errorSummary = '';
+                        if (data.google_places && (data.google_places.error || data.google_places.error_message || data.google_places.status)) {
+                            errorSummary += 'Google Places: ' + (data.google_places.error || data.google_places.error_message || data.google_places.status) + '\n';
+                        }
+                        if (data.npi_registry && (data.npi_registry.error || data.npi_registry.error_message)) {
+                            errorSummary += 'NPI Registry: ' + (data.npi_registry.error || data.npi_registry.error_message) + '\n';
+                        }
+                        if (data.geocode && (data.geocode.error || data.geocode.error_message || data.geocode.status)) {
+                            errorSummary += 'Geocode: ' + (data.geocode.error || data.geocode.error_message || data.geocode.status) + '\n';
+                        }
+                        if (errorSummary) {
+                            $out.html('<strong>Errors Detected:</strong>\n' + errorSummary.replace(/\n/g,'<br>') + '<hr>' + '<code>' + JSON.stringify(data, null, 2) + '</code>');
+                        } else {
+                            $out.html('<code>' + JSON.stringify(data, null, 2) + '</code>');
+                        }
                     })
                     .fail(function(jqXHR, textStatus, errorThrown) {
-                        $out.text('Error: ' + textStatus + '\n' + errorThrown);
+                        let msg = 'Error: ' + textStatus + '\n' + errorThrown;
+                        if (jqXHR && jqXHR.responseText) {
+                            msg += '\n' + jqXHR.responseText;
+                        }
+                        $out.text(msg);
                     })
                     .always(function() {
                         $btn.prop('disabled', false);

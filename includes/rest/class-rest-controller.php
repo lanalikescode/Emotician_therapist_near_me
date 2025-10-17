@@ -208,10 +208,83 @@ class EMDR_Rest_Controller {
         }
 
         $sample_query = $request->get_param('query') ?? 'EMDR therapist los angeles';
-        $fake_request = new WP_REST_Request('GET', '/emdr/v1/therapists');
-        $fake_request->set_query_params([ 'query' => $sample_query, 'lat' => 34.052235, 'lng' => -118.243683 ]);
-        $response = $this->get_therapists($fake_request);
-        return $response;
+        $lat = 34.052235;
+        $lng = -118.243683;
+        $options = get_option('emdr_options', []);
+        $places_api_key = $options['map_api_key'] ?? '';
+        $npi_api_key = $options['npi_api_key'] ?? '';
+
+        $diagnostics = [
+            'google_places' => [],
+            'npi_registry' => [],
+            'geocode' => [],
+            'summary' => [],
+        ];
+
+        // Google Places test
+        if ( ! empty( $places_api_key ) ) {
+            $text = rawurlencode( $sample_query );
+            $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}&location={$lat},{$lng}&radius=50000&key=" . rawurlencode($places_api_key);
+            $resp = wp_remote_get( $places_url, [ 'timeout' => 10 ] );
+            if ( is_wp_error( $resp ) ) {
+                $diagnostics['google_places']['error'] = $resp->get_error_message();
+            } else {
+                $body = wp_remote_retrieve_body( $resp );
+                $data = json_decode( $body, true );
+                $diagnostics['google_places']['response'] = $data;
+                if ( isset($data['error_message']) ) {
+                    $diagnostics['google_places']['error_message'] = $data['error_message'];
+                }
+                if ( isset($data['status']) && $data['status'] !== 'OK' ) {
+                    $diagnostics['google_places']['status'] = $data['status'];
+                }
+            }
+        } else {
+            $diagnostics['google_places']['error'] = 'No Google API key set.';
+        }
+
+        // NPI Registry test
+        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&limit=2&organization_name=' . rawurlencode( $sample_query );
+        $npi_resp = wp_remote_get( $npi_url, [ 'timeout' => 10 ] );
+        if ( is_wp_error( $npi_resp ) ) {
+            $diagnostics['npi_registry']['error'] = $npi_resp->get_error_message();
+        } else {
+            $body = wp_remote_retrieve_body( $npi_resp );
+            $data = json_decode( $body, true );
+            $diagnostics['npi_registry']['response'] = $data;
+            if ( isset($data['Errors']) ) {
+                $diagnostics['npi_registry']['error_message'] = $data['Errors'];
+            }
+        }
+
+        // Geocode test (only if Google API key set)
+        if ( ! empty( $places_api_key ) ) {
+            $address = 'Los Angeles, CA';
+            $geocode_url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' . rawurlencode( $address ) . '&key=' . rawurlencode($places_api_key);
+            $gresp = wp_remote_get( $geocode_url, [ 'timeout' => 10 ] );
+            if ( is_wp_error( $gresp ) ) {
+                $diagnostics['geocode']['error'] = $gresp->get_error_message();
+            } else {
+                $body = wp_remote_retrieve_body( $gresp );
+                $data = json_decode( $body, true );
+                $diagnostics['geocode']['response'] = $data;
+                if ( isset($data['error_message']) ) {
+                    $diagnostics['geocode']['error_message'] = $data['error_message'];
+                }
+                if ( isset($data['status']) && $data['status'] !== 'OK' ) {
+                    $diagnostics['geocode']['status'] = $data['status'];
+                }
+            }
+        }
+
+        // Summary
+        $diagnostics['summary'] = [
+            'google_api_key_present' => !empty($places_api_key),
+            'npi_api_key_present' => !empty($npi_api_key),
+            'sample_query' => $sample_query,
+        ];
+
+        return rest_ensure_response($diagnostics);
     }
 }
 ?>
