@@ -55,12 +55,42 @@ class EMDR_Therapist_Finder_Settings_Page {
             'emdr-therapist-finder',
             'emdr_settings_section'
         );
+
+        add_settings_field(
+            'emdr_places_api_key',
+            'Google Places API Key',
+            array( $this, 'places_api_key_render' ),
+            'emdr-therapist-finder',
+            'emdr_settings_section'
+        );
+
+        add_settings_field(
+            'emdr_npi_api_key',
+            'NPI API Key (if applicable)',
+            array( $this, 'npi_api_key_render' ),
+            'emdr-therapist-finder',
+            'emdr_settings_section'
+        );
     }
 
     public function map_api_key_render() {
         $options = get_option( 'emdr_options' );
         ?>
         <input type='text' name='emdr_options[map_api_key]' value='<?php echo esc_attr( $options['map_api_key'] ?? '' ); ?>'>
+        <?php
+    }
+
+    public function places_api_key_render() {
+        $options = get_option( 'emdr_options' );
+        ?>
+        <input type='text' name='emdr_options[places_api_key]' value='<?php echo esc_attr( $options['places_api_key'] ?? '' ); ?>'>
+        <?php
+    }
+
+    public function npi_api_key_render() {
+        $options = get_option( 'emdr_options' );
+        ?>
+        <input type='text' name='emdr_options[npi_api_key]' value='<?php echo esc_attr( $options['npi_api_key'] ?? '' ); ?>'>
         <?php
     }
 }

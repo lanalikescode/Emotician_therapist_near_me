@@ -8,6 +8,24 @@ class EMDR_Therapist_Finder_Public {
     public function enqueue_scripts() {
         wp_enqueue_style('emdr-public-style', plugin_dir_url(__FILE__) . '../../assets/css/public.css');
         wp_enqueue_script('emdr-public-script', plugin_dir_url(__FILE__) . '../../assets/js/public.js', ['jquery'], null, true);
+
+        // Localize plugin settings for frontend JS
+        $options = get_option( 'emdr_options', [] );
+        $map_api_key = $options['map_api_key'] ?? '';
+        $places_api_key = $options['places_api_key'] ?? '';
+        $npi_api_key = $options['npi_api_key'] ?? '';
+
+        wp_localize_script('emdr-public-script', 'EMDRSettings', [
+            'restUrl' => esc_url_raw( rest_url('emdr/v1/') ),
+            'mapApiKey' => esc_attr( $map_api_key ),
+            'placesApiKey' => esc_attr( $places_api_key ),
+            'npiApiKey' => esc_attr( $npi_api_key ),
+        ]);
+
+        // Enqueue Google Maps JS API if map API key is provided
+        if ( ! empty( $map_api_key ) ) {
+            wp_enqueue_script('google-maps', 'https://maps.googleapis.com/maps/api/js?key=' . rawurlencode($map_api_key) . '&libraries=places', [], null, true);
+        }
     }
 
     public function render_search_page() {
