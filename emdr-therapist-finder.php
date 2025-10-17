@@ -25,20 +25,32 @@ require_once EMDR_PLUGIN_DIR . 'includes/rest/routes.php';
 require_once EMDR_PLUGIN_DIR . 'includes/admin/class-admin.php';
 require_once EMDR_PLUGIN_DIR . 'includes/public/class-public.php';
 
-// Activation and deactivation hooks.
-register_activation_hook( __FILE__, array( 'EMDR_Activator', 'activate' ) );
-register_deactivation_hook( __FILE__, array( 'EMDR_Deactivator', 'deactivate' ) );
+// Activation and deactivation hooks. Use the actual class names defined in includes.
+register_activation_hook( __FILE__, array( 'EMDR_Therapist_Finder_Activator', 'activate' ) );
+register_deactivation_hook( __FILE__, array( 'EMDR_Therapist_Finder_Deactivator', 'deactivate' ) );
 
 // Initialize the plugin.
 function emdr_init() {
-    // Initialize public functionality.
-    $public = new EMDR_Public();
-    $public->init();
+    // Initialize public functionality if the class exists.
+    if ( class_exists( 'EMDR_Therapist_Finder_Public' ) ) {
+        $public = new EMDR_Therapist_Finder_Public();
+        // original class used constructor to register actions; call init if available
+        if ( method_exists( $public, 'init' ) ) {
+            $public->init();
+        }
+    }
 
     // Initialize admin functionality.
-    if ( is_admin() ) {
+    if ( is_admin() && class_exists( 'EMDR_Admin' ) ) {
         $admin = new EMDR_Admin();
-        $admin->init();
+        if ( method_exists( $admin, 'init' ) ) {
+            $admin->init();
+        }
+    }
+
+    // Initialize REST controller if available.
+    if ( class_exists( 'EMDR_Rest_Controller' ) ) {
+        new EMDR_Rest_Controller();
     }
 }
 add_action( 'plugins_loaded', 'emdr_init' );
