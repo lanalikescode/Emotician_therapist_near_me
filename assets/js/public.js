@@ -18,19 +18,41 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Try to get browser geolocation
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            currentLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-            initMap(currentLocation);
-            // set placeholder to the user's location if desired
-            searchInput.placeholder = 'Find EMDR therapist in...';
-        }, function(err) {
-            // Use default LA
+    // Initialize map when Google Maps is ready or fallback to default
+    function onGoogleMapsReady() {
+        // Try browser geolocation first
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                currentLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                initMap(currentLocation);
+                searchInput.placeholder = 'Find EMDR therapist in...';
+            }, function(err) {
+                initMap(DEFAULT_LOCATION);
+            }, { timeout: 5000 });
+        } else {
             initMap(DEFAULT_LOCATION);
-        }, { timeout: 5000 });
+        }
+    }
+
+    if (typeof google !== 'undefined' && google.maps) {
+        onGoogleMapsReady();
     } else {
-        initMap(DEFAULT_LOCATION);
+        // If google maps is loaded asynchronously, wait for it
+        window.initEMDRMap = function() {
+            onGoogleMapsReady();
+        };
+        // Some installs may not call init callback; try to poll for google.maps for a short while
+        var gmPollAttempts = 0;
+        var gmPoll = setInterval(function() {
+            gmPollAttempts++;
+            if (typeof google !== 'undefined' && google.maps) {
+                clearInterval(gmPoll);
+                onGoogleMapsReady();
+            } else if (gmPollAttempts > 20) { // ~10 seconds
+                clearInterval(gmPoll);
+                initMap(DEFAULT_LOCATION);
+            }
+        }, 500);
     }
 
     function renderResults(items) {
@@ -55,7 +77,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function doSearch(query) {
         try {
-            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + currentLocation.lat + '&lng=' + currentLocation.lng;
+            // If the query looks like a location string, geocode it to lat/lng using Google Maps Geocoder when available
+            let searchLat = currentLocation.lat;
+            let searchLng = currentLocation.lng;
+            if (query && typeof google !== 'undefined' && google.maps) {
+                const geocoder = new google.maps.Geocoder();
+                const geocodeResult = await new Promise((resolve) => {
+                    geocoder.geocode({ address: query }, function(results, status) {
+                        if (status === 'OK' && results[0]) {
+                            resolve(results[0].geometry.location);
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                });
+                if (geocodeResult) {
+                    searchLat = geocodeResult.lat();
+                    searchLng = geocodeResult.lng();
+                    // center the map on the geocoded location
+                    if (map) map.setCenter({ lat: searchLat, lng: searchLng });
+                }
+            }
+
+            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + searchLat + '&lng=' + searchLng + '&radius=50000';
             const res = await fetch(url, { credentials: 'same-origin' });
             const data = await res.json();
             // Expect data.items (array) and data.locations (array of {lat,lng})
