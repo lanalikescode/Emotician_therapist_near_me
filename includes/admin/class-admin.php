@@ -22,7 +22,8 @@ class EMDR_Admin {
     }
 
     public function settings_init() {
-        register_setting( 'pluginPage', 'emdr_settings' );
+        // Use emdr_options as the option name so frontend and other settings code read the same option
+        register_setting( 'pluginPage', 'emdr_options' );
 
         add_settings_section(
             'emdr_pluginPage_section', 
@@ -38,12 +39,58 @@ class EMDR_Admin {
             'pluginPage', 
             'emdr_pluginPage_section' 
         );
+
+        // API keys for maps/places/NPI
+        add_settings_field(
+            'emdr_map_api_key',
+            __( 'Google Maps API Key', 'emdr-therapist-finder' ),
+            array( $this, 'map_api_key_render' ),
+            'pluginPage',
+            'emdr_pluginPage_section'
+        );
+
+        add_settings_field(
+            'emdr_places_api_key',
+            __( 'Google Places API Key', 'emdr-therapist-finder' ),
+            array( $this, 'places_api_key_render' ),
+            'pluginPage',
+            'emdr_pluginPage_section'
+        );
+
+        add_settings_field(
+            'emdr_npi_api_key',
+            __( 'NPI API Key (optional)', 'emdr-therapist-finder' ),
+            array( $this, 'npi_api_key_render' ),
+            'pluginPage',
+            'emdr_pluginPage_section'
+        );
     }
 
     public function text_field_0_render() {
-        $options = get_option( 'emdr_settings' );
+        $options = get_option( 'emdr_options' );
         ?>
-        <input type='text' name='emdr_settings[emdr_text_field_0]' value='<?php echo $options['emdr_text_field_0']; ?>'>
+        <input type='text' name='emdr_options[emdr_text_field_0]' value='<?php echo esc_attr( $options['emdr_text_field_0'] ?? '' ); ?>'>
+        <?php
+    }
+
+    public function map_api_key_render() {
+        $options = get_option( 'emdr_options' );
+        ?>
+        <input type='text' name='emdr_options[map_api_key]' value='<?php echo esc_attr( $options['map_api_key'] ?? '' ); ?>'>
+        <?php
+    }
+
+    public function places_api_key_render() {
+        $options = get_option( 'emdr_options' );
+        ?>
+        <input type='text' name='emdr_options[places_api_key]' value='<?php echo esc_attr( $options['places_api_key'] ?? '' ); ?>'>
+        <?php
+    }
+
+    public function npi_api_key_render() {
+        $options = get_option( 'emdr_options' );
+        ?>
+        <input type='text' name='emdr_options[npi_api_key]' value='<?php echo esc_attr( $options['npi_api_key'] ?? '' ); ?>'>
         <?php
     }
 
