@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Elements expected in the template
-    const searchInput = document.getElementById('therapist-search');
-    const searchButton = document.getElementById('search-button');
-    const resultsList = document.getElementById('therapist-results');
-    const mapContainer = document.getElementById('map');
+    // Elements expected in the template (support old and new IDs)
+    const searchInput = document.getElementById('therapist-search') || document.getElementById('emdr-location-input');
+    const searchButton = document.getElementById('search-button') || (document.querySelector('#emdr-location-form button[type="submit"]') || null);
+    const resultsList = document.getElementById('therapist-results') || document.getElementById('emdr-results') || document.getElementById('results-list') || null;
+    const mapContainer = document.getElementById('map') || document.getElementById('emdr-ui-kit-container') || document.getElementById('emdr-map') || null;
 
     // Default to Los Angeles if geolocation not available
     const DEFAULT_LOCATION = { lat: 34.052235, lng: -118.243683 };
@@ -25,7 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
             navigator.geolocation.getCurrentPosition(function(position) {
                 currentLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
                 initMap(currentLocation);
-                searchInput.placeholder = 'Find EMDR therapist in...';
+                if (searchInput) {
+                    try { searchInput.placeholder = 'Find EMDR therapist in...'; } catch (e) { logDiag('Unable to set placeholder: ' + e.message); }
+                } else {
+                    logDiag('searchInput element not found; skipping placeholder set');
+                }
             }, function(err) {
                 initMap(DEFAULT_LOCATION);
             }, { timeout: 5000 });
@@ -60,6 +64,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderResults(items) {
+        if (!resultsList) {
+            logDiag('Results container not found; skipping renderResults');
+            return;
+        }
         resultsList.innerHTML = '';
         if (!items || items.length === 0) {
             resultsList.innerHTML = '<li>No therapists found.</li>';
@@ -161,8 +169,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Wire up UI
-    searchButton.addEventListener('click', function() {
-        const q = searchInput.value || '';
-        doSearch(q);
-    });
+    if (searchButton) {
+        searchButton.addEventListener('click', function(e) {
+            e.preventDefault && e.preventDefault();
+            const q = (searchInput && searchInput.value) ? searchInput.value : '';
+            doSearch(q);
+        });
+    } else if (document.getElementById('emdr-location-form')) {
+        document.getElementById('emdr-location-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const input = document.getElementById('emdr-location-input');
+            const q = (input && input.value) ? input.value : '';
+            doSearch(q);
+        });
+    } else {
+        logDiag('No search UI found (no button and no form).');
+    }
 });
