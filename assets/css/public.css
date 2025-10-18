@@ -1,4 +1,4 @@
-/* Minimal, scoped styles for EMDR therapist cards. Avoid global element overrides. */
+/* Psychology Today-inspired therapist card layout */
 
 .results-list {
     list-style: none;
@@ -6,29 +6,29 @@
     margin: 0;
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 16px;
 }
 
 .emdr-card {
     display: grid;
-    grid-template-columns: 160px 1fr;
-    gap: 16px;
+    grid-template-columns: 200px 1fr auto;
+    gap: 20px;
     align-items: start;
     background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 12px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 .emdr-card-left {
-    width: 160px;
-    height: 160px;
+    width: 200px;
+    height: 200px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f8fafc;
-    border-radius: 8px;
+    background: #f7f7f7;
+    border-radius: 6px;
     overflow: hidden;
 }
 
@@ -46,51 +46,112 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 28px;
-    color: #334155;
-    background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+    font-size: 48px;
+    color: #555;
+    background: linear-gradient(135deg, #e0e0e0, #f5f5f5);
 }
 
 .emdr-card-main {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.emdr-card-name-link {
+    font-weight: 600;
+    font-size: 20px;
+    color: #2563eb;
+    cursor: pointer;
+}
+.emdr-card-name-link:hover { text-decoration: underline; }
+
+.emdr-card-cred {
+    color: #555;
+    font-size: 14px;
+}
+
+.emdr-endorsed {
+    color: #059669;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.emdr-card-location {
+    color: #555;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
     gap: 6px;
 }
+.emdr-card-location .icon { font-size: 16px; }
 
-.emdr-card-name {
-    font-weight: 700;
-    font-size: 18px;
-    color: #111827;
+.emdr-card-phone {
+    color: #555;
+    font-size: 14px;
 }
 
-.emdr-badge {
-    display: inline-block;
-    font-size: 12px;
-    color: #065f46;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    border-radius: 999px;
-    padding: 2px 8px;
+.emdr-card-desc {
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-top: 8px;
 }
 
-.emdr-card-address {
-    color: #374151;
+.emdr-attrib {
+    color: #999;
+    font-size: 11px;
+    margin-top: 4px;
 }
 
-.emdr-card-actions {
+.emdr-card-right {
     display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
 }
 
-.emdr-link {
-    color: #2563eb;
-    text-decoration: none;
+.emdr-card-phone-display {
+    font-weight: 600;
+    font-size: 18px;
+    color: #333;
 }
-.emdr-link:hover { text-decoration: underline; }
 
-.emdr-rating { color: #374151; font-size: 14px; }
-.emdr-rating .stars { color: #f59e0b; margin-right: 4px; }
-.emdr-rating .num { color: #6b7280; }
+.emdr-btn-email,
+.emdr-btn-view {
+    width: 120px;
+    padding: 10px 16px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+}
+.emdr-btn-email:hover,
+.emdr-btn-view:hover {
+    background: #f9f9f9;
+}
 
-.emdr-attrib { color: #6b7280; font-size: 12px; }
+/* Spinner */
+#emdr-spinner {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(255,255,255,0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.emdr-spinner-circle {
+    border: 4px solid #e0e0e0;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: emdr-spin 1s linear infinite;
+}
+@keyframes emdr-spin {
+    to { transform: rotate(360deg); }
+}
