@@ -1,4 +1,16 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Diagnostics helper - define first so it's available everywhere
+    const diagnosticsEl = document.getElementById('emdr-diagnostics');
+    function logDiag(msg) {
+        if (diagnosticsEl) {
+            diagnosticsEl.style.display = 'block';
+            const d = document.createElement('div');
+            d.textContent = msg;
+            diagnosticsEl.appendChild(d);
+        }
+        console.log(msg);
+    }
+
     // Elements expected in the template (support old and new IDs)
     const searchInput = document.getElementById('therapist-search') || document.getElementById('emdr-location-input');
     const searchButton = document.getElementById('search-button') || (document.querySelector('#emdr-location-form button[type="submit"]') || null);
@@ -119,18 +131,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const marker = new google.maps.Marker({ position: loc, map: map });
             markers.push(marker);
         });
-    }
-
-    // Diagnostics helper
-    const diagnosticsEl = document.getElementById('emdr-diagnostics');
-    function logDiag(msg) {
-        if (diagnosticsEl) {
-            diagnosticsEl.style.display = 'block';
-            const d = document.createElement('div');
-            d.textContent = msg;
-            diagnosticsEl.appendChild(d);
-        }
-        console.log(msg);
     }
 
     // Global error handlers to surface runtime problems
