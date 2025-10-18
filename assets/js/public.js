@@ -38,9 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
         onGoogleMapsReady();
     } else {
         // If google maps is loaded asynchronously, wait for it
-        window.initEMDRMap = function() {
-            onGoogleMapsReady();
-        };
         // Some installs may not call init callback; try to poll for google.maps for a short while
         var gmPollAttempts = 0;
         var gmPoll = setInterval(function() {
