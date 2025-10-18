@@ -27,8 +27,28 @@ $map_api_key = $options['map_api_key'] ?? '';
     </gmpx-api-loader>
 </div>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo esc_attr($map_api_key); ?>&libraries=places"></script>
-<script src="https://maps.googleapis.com/maps/api/extended-component-library.js"></script>
+
+<script>
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+        key: "<?php echo esc_attr($map_api_key); ?>",
+        v: "weekly"
+    });
+</script>
+
+<script type="module">
+    // Import the Places Library for PlaceDetailsElement and PlaceSearchElement
+    (async () => {
+        const {PlaceDetailsElement, PlaceSearchElement} = await google.maps.importLibrary('places');
+        // You can now use PlaceDetailsElement and PlaceSearchElement in your page
+        // Example: dynamically create and insert a PlaceSearchElement
+        const placeList = document.getElementById('emdr-place-list');
+        if (placeList) {
+            // Optionally, you can replace this with your own logic/UI
+            // For now, just log that the library loaded
+            console.log('Google Places UI Kit loaded:', {PlaceDetailsElement, PlaceSearchElement});
+        }
+    })();
+</script>
 <script>
 // Remove custom JS if present
 // Custom search: always search for 'emdr therapy in [location]'
