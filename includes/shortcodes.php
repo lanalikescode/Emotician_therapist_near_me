@@ -3,6 +3,10 @@
 
 // Register the shortcode [emdr_finder]
 function emdr_finder_shortcode($atts) {
+    // Defensive dequeue: ensure public.js is not loaded
+    add_action('wp_print_scripts', function() {
+        wp_dequeue_script('emdr-public-script');
+    }, 100);
     // Enqueue necessary scripts and styles
     wp_enqueue_style('emdr-public-style', plugin_dir_url(__FILE__) . '../assets/css/public.css');
     // Do NOT enqueue custom public.js as UI Kit will handle all UI

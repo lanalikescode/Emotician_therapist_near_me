@@ -27,7 +27,7 @@ $map_api_key = $options['map_api_key'] ?? '';
     </gmpx-api-loader>
 </div>
 
-<script type="module" src="https://unpkg.com/@googlemaps/extended-component-library@latest/dist/extended-component-library/extended-component-library.esm.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@googlemaps/extended-component-library/dist/extended-component-library/extended-component-library.esm.js"></script>
 <script>
 // Remove custom JS if present
 // Custom search: always search for 'emdr therapy in [location]'
