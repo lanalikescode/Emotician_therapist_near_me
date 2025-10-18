@@ -6,11 +6,16 @@
  */
 
 function emdr_load_map_scripts() {
-    // Enqueue Google Maps API
-    wp_enqueue_script('google-maps', 'https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY', array(), null, true);
-    
-    // Enqueue custom map script
-    wp_enqueue_script('emdr-map', plugin_dir_url(__FILE__) . 'js/map.js', array('google-maps'), null, true);
+    // Use saved plugin option for API key if present
+    $options = get_option('emdr_options', []);
+    $map_api_key = $options['map_api_key'] ?? '';
+
+    if ( ! empty( $map_api_key ) ) {
+        // Enqueue Google Maps API (no callback) - other scripts may poll for availability
+        wp_enqueue_script('google-maps', 'https://maps.googleapis.com/maps/api/js?key=' . rawurlencode($map_api_key) . '&libraries=places', array(), null, true);
+        // Enqueue custom map script dependent on Google Maps
+        wp_enqueue_script('emdr-map', plugin_dir_url(__FILE__) . 'js/map.js', array('google-maps'), null, true);
+    }
 }
 
 add_action('wp_enqueue_scripts', 'emdr_load_map_scripts');

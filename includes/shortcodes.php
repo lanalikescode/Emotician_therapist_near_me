@@ -8,7 +8,8 @@ function emdr_finder_shortcode($atts) {
         wp_dequeue_script('emdr-public-script');
     }, 100);
     // Enqueue necessary scripts and styles
-    wp_enqueue_style('emdr-public-style', plugin_dir_url(__FILE__) . '../assets/css/public.css');
+    $plugin_base = plugin_dir_url( dirname(__FILE__, 1) );
+    wp_enqueue_style('emdr-public-style', $plugin_base . 'assets/css/public.css');
     // Do NOT enqueue custom public.js as UI Kit will handle all UI
 
     // Start output buffering
