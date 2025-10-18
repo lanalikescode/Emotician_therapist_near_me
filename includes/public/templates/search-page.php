@@ -39,15 +39,39 @@ $map_api_key = $options['map_api_key'] ?? '';
             const container = document.getElementById('emdr-ui-kit-container');
             if (!container) return;
 
+            const diagnostics = document.getElementById('emdr-diagnostics');
+            function logDiag(msg) {
+                if (diagnostics) {
+                    diagnostics.innerHTML += '<div>' + msg + '</div>';
+                    diagnostics.style.display = 'block';
+                }
+                console.log(msg);
+            }
+
+            logDiag('Places library loaded, initializing components...');
+
+            try {
                     // Create PlaceSearchElement and PlaceDetailsElement
-                    const searchEl = new PlaceSearchElement();
+                    const searchEl = new PlaceSearchElement({
+                        type: ['health'],  // Filter to health-related businesses
+                        fields: ['name', 'formatted_address', 'place_id', 'types', 'business_status']
+                    });
                     const detailsEl = new PlaceDetailsElement();
 
-                    // Set initial query (try both for diagnostics)
+                    logDiag('Components created successfully');
+
+                    // Set initial query and parameters
                     searchEl.query = 'emdr therapy';
                     searchEl.maxResults = 25;
                     searchEl.style.flex = '1';
                     detailsEl.style.flex = '1';
+
+                    // Verify component properties
+                    logDiag('SearchElement properties set - Query: ' + searchEl.query + ', MaxResults: ' + searchEl.maxResults);
+            } catch (error) {
+                    logDiag('Error initializing components: ' + error.message);
+                    console.error('Full initialization error:', error);
+            }
 
                     // Diagnostics panel
                     const diagnostics = document.getElementById('emdr-diagnostics');
@@ -100,12 +124,23 @@ $map_api_key = $options['map_api_key'] ?? '';
                             const loc = input.value.trim();
                             if (loc.length > 0) {
                                 // For diagnostics, allow toggling between 'emdr therapy in [location]' and just '[location]'
-                                let query = 'emdr therapy in ' + loc;
-                                if (loc.toLowerCase().includes('debug:')) {
-                                    query = loc.replace('debug:', '').trim();
-                                    logDiag('DEBUG: Using raw location query: ' + query);
-                                }
+                                // Try different query formats for testing
+                            if (loc.toLowerCase().includes('debug:')) {
+                                // Debug mode - use exact query
+                                let query = loc.replace('debug:', '').trim();
+                                logDiag('DEBUG: Using raw query: ' + query);
                                 searchEl.query = query;
+                            } else if (loc.toLowerCase().includes('test:')) {
+                                // Test mode - simple location search
+                                let query = loc.replace('test:', '').trim();
+                                logDiag('TEST: Searching for location: ' + query);
+                                searchEl.query = query;
+                            } else {
+                                // Normal mode - search for EMDR therapy
+                                let query = 'emdr therapy in ' + loc;
+                                logDiag('SEARCH: Using query: ' + query);
+                                searchEl.query = query;
+                            }
                                 logDiag('Searching for: ' + query);
                             }
                         });
