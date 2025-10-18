@@ -62,16 +62,24 @@ $map_api_key = $options['map_api_key'] ?? '';
                     // Listen for search errors and results
                     searchEl.addEventListener('gmpx-search-error', (e) => {
                         logDiag('Search error: ' + (e.detail?.error?.message || JSON.stringify(e.detail)));
+                        console.error('Full error details:', e.detail);
                     });
                     searchEl.addEventListener('gmpx-search-results-changed', (e) => {
                         const count = e.detail?.results?.length || 0;
                         logDiag('Search results changed: ' + count + ' results');
                         if (count === 0) {
                             logDiag('No results found for query: ' + searchEl.query);
+                        } else {
+                            // Log first result for debugging
+                            const firstResult = e.detail.results[0];
+                            logDiag('First result: ' + firstResult.formattedAddress);
                         }
+                        console.log('Full results:', e.detail.results);
                     });
                     searchEl.addEventListener('gmpx-search-status-changed', (e) => {
-                        logDiag('Search status: ' + (e.detail?.status || JSON.stringify(e.detail)));
+                        logDiag('Search status: ' + (e.detail?.status || 'unknown'));
+                        logDiag('Search request: ' + searchEl.query);
+                        console.log('Full status details:', e.detail);
                     });
 
                     // When a place is selected, show details
