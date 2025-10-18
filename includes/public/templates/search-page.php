@@ -90,8 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Google Places UI Kit -->
-<script type="module" src="https://unpkg.com/@googlemaps/extended-component-library@latest/dist/extended-component-library/extended-component-library.esm.js"></script>
+<!-- Google Places UI Kit loader is now handled by official Google loader above -->
 <script>
 // Remove custom JS if present
 if (window.EMDRSettings) {
