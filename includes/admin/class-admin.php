@@ -90,8 +90,8 @@ class EMDR_Admin {
             <button id="emdr-run-test" class="button">Test API Connections</button>
             <hr>
             <h3>NPI Registry quick test</h3>
-            <p>Enter a name or organization to test the NPI Registry directly:</p>
-            <input type="text" id="emdr-npi-test-query" placeholder="e.g., EMDR Los Angeles" style="width: 320px;">
+            <p>Enter a location to test the NPI Registry directly (supports "City, ST" or ZIP):</p>
+            <input type="text" id="emdr-npi-test-location" placeholder="e.g., Los Angeles, CA or 90012" style="width: 320px;">
             <button id="emdr-run-npi-test" class="button">Test NPI</button>
             <pre id="emdr-test-output" style="white-space:pre-wrap;background:#f7f7f7;border:1px solid #ddd;padding:10px;margin-top:10px;display:none;max-height:400px;overflow:auto;"></pre>
 
@@ -143,12 +143,12 @@ class EMDR_Admin {
                 $('#emdr-run-npi-test').on('click', function() {
                     const $btn = $(this);
                     const $out = $('#emdr-test-output');
-                    const q = $('#emdr-npi-test-query').val() || '';
+                    const loc = $('#emdr-npi-test-location').val() || '';
                     $btn.prop('disabled', true);
                     $out.show().text('Running NPI test...');
 
                     $.ajax({
-                        url: '<?php echo esc_url_raw( rest_url('emdr/v1/therapists/test-npi') ); ?>' + (q ? ('?query=' + encodeURIComponent(q)) : ''),
+                        url: '<?php echo esc_url_raw( rest_url('emdr/v1/therapists/test-npi') ); ?>' + (loc ? ('?location=' + encodeURIComponent(loc)) : ''),
                         method: 'GET',
                         beforeSend: function ( xhr ) {
                             xhr.setRequestHeader( 'X-WP-Nonce', '<?php echo wp_create_nonce( 'wp_rest' ); ?>' );

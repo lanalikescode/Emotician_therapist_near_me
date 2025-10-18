@@ -338,9 +338,28 @@ class EMDR_Rest_Controller {
         }
 
         $query = sanitize_text_field( $request->get_param('query') ?? '' );
-        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&limit=10';
-        if ( ! empty( $query ) ) {
-            // Use organization_name as a general free-text input like in main flow
+        $location = sanitize_text_field( $request->get_param('location') ?? '' );
+        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&limit=10&address_purpose=LOCATION&country_code=US';
+
+        // Prefer location-based testing if a location string is provided
+        if ( ! empty( $location ) ) {
+            $loc = trim($location);
+            // If it's a 5-digit ZIP, use postal_code
+            if ( preg_match('/^\d{5}$/', $loc) ) {
+                $npi_url .= '&postal_code=' . rawurlencode($loc);
+            } else {
+                // Try "City, ST" format first
+                if ( preg_match('/^\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*$/', $loc, $m) ) {
+                    $city = trim($m[1]);
+                    $state = strtoupper(trim($m[2]));
+                    $npi_url .= '&city=' . rawurlencode($city) . '&state=' . rawurlencode($state);
+                } else {
+                    // Fallback: set city only (NPI may still return results)
+                    $npi_url .= '&city=' . rawurlencode($loc);
+                }
+            }
+        } elseif ( ! empty( $query ) ) {
+            // Fallback: Use organization_name if no location provided
             $npi_url .= '&organization_name=' . rawurlencode( $query );
         }
 
