@@ -17,6 +17,13 @@ class EMDR_Rest_Controller {
             'permission_callback' => function() { return current_user_can('manage_options'); },
         ]);
 
+        // Admin-only: test NPI Registry endpoint directly with a provided query
+        register_rest_route('emdr/v1', '/therapists/test-npi', [
+            'methods' => 'GET',
+            'callback' => [$this, 'test_npi'],
+            'permission_callback' => function() { return current_user_can('manage_options'); },
+        ]);
+
         register_rest_route('emdr/v1', '/therapists/(?P<id>\d+)', [
             'methods' => 'GET',
             'callback' => [$this, 'get_therapist'],
@@ -322,6 +329,34 @@ class EMDR_Rest_Controller {
             return rest_ensure_response(['success' => true]);
         }
         return new WP_Error('no_therapist', 'Therapist not found', ['status' => 404]);
+    }
+
+    // Admin-only: Test NPI Registry with a query; returns only NPI response and any error details
+    public function test_npi($request) {
+        if ( ! current_user_can('manage_options') ) {
+            return new WP_Error('forbidden', 'Not allowed', ['status' => 403]);
+        }
+
+        $query = sanitize_text_field( $request->get_param('query') ?? '' );
+        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&limit=10';
+        if ( ! empty( $query ) ) {
+            // Use organization_name as a general free-text input like in main flow
+            $npi_url .= '&organization_name=' . rawurlencode( $query );
+        }
+
+        $result = [ 'request_url' => $npi_url, 'response' => null, 'error' => null ];
+        $resp = wp_remote_get( $npi_url, [ 'timeout' => 10 ] );
+        if ( is_wp_error( $resp ) ) {
+            $result['error'] = $resp->get_error_message();
+            return rest_ensure_response( $result );
+        }
+        $body = wp_remote_retrieve_body( $resp );
+        $data = json_decode( $body, true );
+        $result['response'] = $data;
+        if ( isset($data['Errors']) ) {
+            $result['error'] = $data['Errors'];
+        }
+        return rest_ensure_response( $result );
     }
 
     // Admin-only: test external APIs using stored keys and a sample query

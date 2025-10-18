@@ -88,6 +88,11 @@ class EMDR_Admin {
             <h2>API Diagnostics</h2>
             <p>Run a live API test using the currently saved API keys to verify external services are working.</p>
             <button id="emdr-run-test" class="button">Test API Connections</button>
+            <hr>
+            <h3>NPI Registry quick test</h3>
+            <p>Enter a name or organization to test the NPI Registry directly:</p>
+            <input type="text" id="emdr-npi-test-query" placeholder="e.g., EMDR Los Angeles" style="width: 320px;">
+            <button id="emdr-run-npi-test" class="button">Test NPI</button>
             <pre id="emdr-test-output" style="white-space:pre-wrap;background:#f7f7f7;border:1px solid #ddd;padding:10px;margin-top:10px;display:none;max-height:400px;overflow:auto;"></pre>
 
             <script>
@@ -121,6 +126,41 @@ class EMDR_Admin {
                         } else {
                             $out.html('<code>' + JSON.stringify(data, null, 2) + '</code>');
                         }
+                    })
+                    .fail(function(jqXHR, textStatus, errorThrown) {
+                        let msg = 'Error: ' + textStatus + '\n' + errorThrown;
+                        if (jqXHR && jqXHR.responseText) {
+                            msg += '\n' + jqXHR.responseText;
+                        }
+                        $out.text(msg);
+                    })
+                    .always(function() {
+                        $btn.prop('disabled', false);
+                    });
+                });
+
+                // NPI only test
+                $('#emdr-run-npi-test').on('click', function() {
+                    const $btn = $(this);
+                    const $out = $('#emdr-test-output');
+                    const q = $('#emdr-npi-test-query').val() || '';
+                    $btn.prop('disabled', true);
+                    $out.show().text('Running NPI test...');
+
+                    $.ajax({
+                        url: '<?php echo esc_url_raw( rest_url('emdr/v1/therapists/test-npi') ); ?>' + (q ? ('?query=' + encodeURIComponent(q)) : ''),
+                        method: 'GET',
+                        beforeSend: function ( xhr ) {
+                            xhr.setRequestHeader( 'X-WP-Nonce', '<?php echo wp_create_nonce( 'wp_rest' ); ?>' );
+                        }
+                    })
+                    .done(function(data) {
+                        let summary = '';
+                        if (data.error) {
+                            summary += 'Error: ' + (typeof data.error === 'string' ? data.error : JSON.stringify(data.error)) + '\n';
+                        }
+                        summary += 'Request URL: ' + (data.request_url || '') + '\n\n';
+                        $out.html('<code>' + (summary ? summary.replace(/\n/g,'<br>') : '') + JSON.stringify(data.response || data, null, 2) + '</code>');
                     })
                     .fail(function(jqXHR, textStatus, errorThrown) {
                         let msg = 'Error: ' + textStatus + '\n' + errorThrown;
