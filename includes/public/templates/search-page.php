@@ -39,42 +39,74 @@ $map_api_key = $options['map_api_key'] ?? '';
             const container = document.getElementById('emdr-ui-kit-container');
             if (!container) return;
 
-            // Create PlaceSearchElement and PlaceDetailsElement
-            const searchEl = new PlaceSearchElement();
-            const detailsEl = new PlaceDetailsElement();
+                    // Create PlaceSearchElement and PlaceDetailsElement
+                    const searchEl = new PlaceSearchElement();
+                    const detailsEl = new PlaceDetailsElement();
 
-            // Set initial query
-            searchEl.query = 'emdr therapy';
-            searchEl.maxResults = 25;
-            searchEl.style.flex = '1';
-            detailsEl.style.flex = '1';
+                    // Set initial query (try both for diagnostics)
+                    searchEl.query = 'emdr therapy';
+                    searchEl.maxResults = 25;
+                    searchEl.style.flex = '1';
+                    detailsEl.style.flex = '1';
 
-            // When a place is selected, show details
-            searchEl.addEventListener('gmpx-place-selection-changed', (e) => {
-                detailsEl.place = e.detail.place;
-            });
-
-            // Add to container
-            container.appendChild(searchEl);
-            container.appendChild(detailsEl);
-
-            // Wire up location search bar
-            const form = document.getElementById('emdr-location-form');
-            const input = document.getElementById('emdr-location-input');
-            if (form && input) {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    const loc = input.value.trim();
-                    if (loc.length > 0) {
-                        searchEl.query = 'emdr therapy in ' + loc;
+                    // Diagnostics panel
+                    const diagnostics = document.getElementById('emdr-diagnostics');
+                    function logDiag(msg) {
+                        if (diagnostics) {
+                            diagnostics.innerHTML += '<div>' + msg + '</div>';
+                            diagnostics.style.display = 'block';
+                        }
+                        console.log(msg);
                     }
-                });
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        form.dispatchEvent(new Event('submit'));
+
+                    // Listen for search errors and results
+                    searchEl.addEventListener('gmpx-search-error', (e) => {
+                        logDiag('Search error: ' + (e.detail?.error?.message || JSON.stringify(e.detail)));
+                    });
+                    searchEl.addEventListener('gmpx-search-results-changed', (e) => {
+                        const count = e.detail?.results?.length || 0;
+                        logDiag('Search results changed: ' + count + ' results');
+                        if (count === 0) {
+                            logDiag('No results found for query: ' + searchEl.query);
+                        }
+                    });
+                    searchEl.addEventListener('gmpx-search-status-changed', (e) => {
+                        logDiag('Search status: ' + (e.detail?.status || JSON.stringify(e.detail)));
+                    });
+
+                    // When a place is selected, show details
+                    searchEl.addEventListener('gmpx-place-selection-changed', (e) => {
+                        detailsEl.place = e.detail.place;
+                    });
+
+                    // Add to container
+                    container.appendChild(searchEl);
+                    container.appendChild(detailsEl);
+
+                    // Wire up location search bar
+                    const form = document.getElementById('emdr-location-form');
+                    const input = document.getElementById('emdr-location-input');
+                    if (form && input) {
+                        form.addEventListener('submit', function(e) {
+                            e.preventDefault();
+                            const loc = input.value.trim();
+                            if (loc.length > 0) {
+                                // For diagnostics, allow toggling between 'emdr therapy in [location]' and just '[location]'
+                                let query = 'emdr therapy in ' + loc;
+                                if (loc.toLowerCase().includes('debug:')) {
+                                    query = loc.replace('debug:', '').trim();
+                                    logDiag('DEBUG: Using raw location query: ' + query);
+                                }
+                                searchEl.query = query;
+                                logDiag('Searching for: ' + query);
+                            }
+                        });
+                        input.addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter') {
+                                form.dispatchEvent(new Event('submit'));
+                            }
+                        });
                     }
-                });
-            }
         } catch (err) {
             const diagnostics = document.getElementById('emdr-diagnostics');
             if (diagnostics) {
