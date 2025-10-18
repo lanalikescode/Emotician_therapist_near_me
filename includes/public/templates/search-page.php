@@ -35,10 +35,7 @@ $map_api_key = $options['map_api_key'] ?? '';
     // Import the Places Library for PlaceDetailsElement and PlaceSearchElement
     (async () => {
         try {
-            const {PlaceDetailsElement, PlaceSearchElement} = await google.maps.importLibrary('places');
-            const container = document.getElementById('emdr-ui-kit-container');
-            if (!container) return;
-
+            // Initialize logging first
             const diagnostics = document.getElementById('emdr-diagnostics');
             function logDiag(msg) {
                 if (diagnostics) {
@@ -48,15 +45,24 @@ $map_api_key = $options['map_api_key'] ?? '';
                 console.log(msg);
             }
 
-            logDiag('Places library loaded, initializing components...');
+            logDiag('Starting initialization...');
 
-            try {
-                    // Create PlaceSearchElement and PlaceDetailsElement
-                    const searchEl = new PlaceSearchElement({
-                        type: ['health'],  // Filter to health-related businesses
-                        fields: ['name', 'formatted_address', 'place_id', 'types', 'business_status']
-                    });
-                    const detailsEl = new PlaceDetailsElement();
+            const {PlaceDetailsElement, PlaceSearchElement} = await google.maps.importLibrary('places');
+            logDiag('Places library loaded');
+
+            const container = document.getElementById('emdr-ui-kit-container');
+            if (!container) {
+                logDiag('Error: Container element not found');
+                return;
+            }
+
+            // Create PlaceSearchElement and PlaceDetailsElement
+            logDiag('Creating UI components...');
+            const searchEl = new PlaceSearchElement({
+                type: ['health'],  // Filter to health-related businesses
+                fields: ['name', 'formatted_address', 'place_id', 'types', 'business_status']
+            });
+            const detailsEl = new PlaceDetailsElement();
 
                     logDiag('Components created successfully');
 
@@ -73,21 +79,12 @@ $map_api_key = $options['map_api_key'] ?? '';
                     console.error('Full initialization error:', error);
             }
 
-                    // Diagnostics panel
-                    const diagnostics = document.getElementById('emdr-diagnostics');
-                    function logDiag(msg) {
-                        if (diagnostics) {
-                            diagnostics.innerHTML += '<div>' + msg + '</div>';
-                            diagnostics.style.display = 'block';
-                        }
-                        console.log(msg);
-                    }
-
                     // Listen for search errors and results
                     searchEl.addEventListener('gmpx-search-error', (e) => {
                         logDiag('Search error: ' + (e.detail?.error?.message || JSON.stringify(e.detail)));
                         console.error('Full error details:', e.detail);
                     });
+
                     searchEl.addEventListener('gmpx-search-results-changed', (e) => {
                         const count = e.detail?.results?.length || 0;
                         logDiag('Search results changed: ' + count + ' results');
@@ -100,6 +97,7 @@ $map_api_key = $options['map_api_key'] ?? '';
                         }
                         console.log('Full results:', e.detail.results);
                     });
+
                     searchEl.addEventListener('gmpx-search-status-changed', (e) => {
                         logDiag('Search status: ' + (e.detail?.status || 'unknown'));
                         logDiag('Search request: ' + searchEl.query);
