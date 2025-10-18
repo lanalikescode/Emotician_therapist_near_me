@@ -20,11 +20,7 @@ $map_api_key = $options['map_api_key'] ?? '';
         <button type="submit" style="padding:8px 16px;">Search</button>
     </form>
     <div id="emdr-diagnostics" style="color:#b00;background:#fff3f3;border:1px solid #fbb;padding:8px;margin-bottom:10px;display:none;"></div>
-    <gmpx-api-loader key="<?php echo esc_attr($map_api_key); ?>" solution-channel="GMP_QB_locatorplus_v7_c" region="US">
-        <gmpx-place-list id="emdr-place-list" max-results="25" query="emdr therapy" style="height: 500px; width: 100%; display: flex;">
-            <gmpx-place-overview slot="overview"></gmpx-place-overview>
-        </gmpx-place-list>
-    </gmpx-api-loader>
+    <div id="emdr-ui-kit-container" style="height: 500px; width: 100%; display: flex;"></div>
 </div>
 
 
@@ -38,14 +34,54 @@ $map_api_key = $options['map_api_key'] ?? '';
 <script type="module">
     // Import the Places Library for PlaceDetailsElement and PlaceSearchElement
     (async () => {
-        const {PlaceDetailsElement, PlaceSearchElement} = await google.maps.importLibrary('places');
-        // You can now use PlaceDetailsElement and PlaceSearchElement in your page
-        // Example: dynamically create and insert a PlaceSearchElement
-        const placeList = document.getElementById('emdr-place-list');
-        if (placeList) {
-            // Optionally, you can replace this with your own logic/UI
-            // For now, just log that the library loaded
-            console.log('Google Places UI Kit loaded:', {PlaceDetailsElement, PlaceSearchElement});
+        try {
+            const {PlaceDetailsElement, PlaceSearchElement} = await google.maps.importLibrary('places');
+            const container = document.getElementById('emdr-ui-kit-container');
+            if (!container) return;
+
+            // Create PlaceSearchElement and PlaceDetailsElement
+            const searchEl = new PlaceSearchElement();
+            const detailsEl = new PlaceDetailsElement();
+
+            // Set initial query
+            searchEl.query = 'emdr therapy';
+            searchEl.maxResults = 25;
+            searchEl.style.flex = '1';
+            detailsEl.style.flex = '1';
+
+            // When a place is selected, show details
+            searchEl.addEventListener('gmpx-place-selection-changed', (e) => {
+                detailsEl.place = e.detail.place;
+            });
+
+            // Add to container
+            container.appendChild(searchEl);
+            container.appendChild(detailsEl);
+
+            // Wire up location search bar
+            const form = document.getElementById('emdr-location-form');
+            const input = document.getElementById('emdr-location-input');
+            if (form && input) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const loc = input.value.trim();
+                    if (loc.length > 0) {
+                        searchEl.query = 'emdr therapy in ' + loc;
+                    }
+                });
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                });
+            }
+        } catch (err) {
+            const diagnostics = document.getElementById('emdr-diagnostics');
+            if (diagnostics) {
+                diagnostics.textContent = 'Google Places UI Kit failed to load: ' + err;
+                diagnostics.style.display = 'block';
+            }
+            console.error('Google Places UI Kit failed to load:', err);
         }
     })();
 </script>
