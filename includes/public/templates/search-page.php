@@ -19,7 +19,8 @@ $map_api_key = $options['map_api_key'] ?? '';
         <input type="text" id="emdr-location-input" placeholder="Enter your city or location" style="padding:8px;width:250px;max-width:90%;" required />
         <button type="submit" style="padding:8px 16px;">Search</button>
     </form>
-    <div id="emdr-diagnostics" style="color:#b00;background:#fff3f3;border:1px solid #fbb;padding:8px;margin-bottom:10px;display:none;"></div>
+        <!-- Diagnostics output (hidden until populated) -->
+        <div id="emdr-diagnostics" style="display:none;border:1px solid #f2dede;background:#fff7f7;color:#8a1f1f;padding:10px;margin:10px 0;"></div>
     <div id="emdr-ui-kit-container" style="height: 500px; width: 100%; display: flex;"></div>
 </div>
 
@@ -32,67 +33,20 @@ $map_api_key = $options['map_api_key'] ?? '';
 </script>
 
 <script type="module">
-    // Set up logging first
+    // Minimal module placeholder: real initialization happens in `assets/js/public.js`.
+    // This module only logs that the template loaded and exposes a small diagnostic hook.
     const diagnostics = document.getElementById('emdr-diagnostics');
     function logDiag(msg) {
         if (diagnostics) {
-            diagnostics.innerHTML += '<div>' + msg + '</div>';
             diagnostics.style.display = 'block';
+            const d = document.createElement('div');
+            d.textContent = msg;
+            diagnostics.appendChild(d);
         }
         console.log(msg);
     }
 
-    // Main initialization function
-    async function initPlaces() {
-        try {
-            logDiag('Starting initialization...');
-<script>
-// Remove custom JS if present
-// Custom search: always search for 'emdr therapy in [location]'
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('emdr-location-form');
-    const input = document.getElementById('emdr-location-input');
-    const placeList = document.getElementById('emdr-place-list');
-    const diagnostics = document.getElementById('emdr-diagnostics');
-    if (form && input && placeList) {
-        // Search on submit or Enter
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const loc = input.value.trim();
-            if (loc.length > 0) {
-                placeList.setAttribute('query', 'emdr therapy in ' + loc);
-                diagnostics.style.display = 'none';
-            } else {
-                diagnostics.textContent = 'Please enter a location.';
-                diagnostics.style.display = 'block';
-            }
-        });
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                form.dispatchEvent(new Event('submit'));
-            }
-        });
-    }
-    // Diagnostics for UI Kit errors
-    window.addEventListener('error', function(e) {
-        diagnostics.textContent = 'Error: ' + (e.message || 'Unknown error');
-        diagnostics.style.display = 'block';
-    });
-    // Optionally, auto-search user's city if available
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(pos) {
-            // Use reverse geocoding if you want to auto-fill city
-        });
-    }
-});
-</script>
-
-<!-- Google Places UI Kit loader is now handled by official Google loader above -->
-<script>
-// Remove custom JS if present
-if (window.EMDRSettings) {
-  // Optionally, you can add custom logic here to sync with WP if needed
-}
+    logDiag('Search page template loaded. Waiting for frontend script to initialize.');
 </script>
 
 <?php get_footer(); ?>

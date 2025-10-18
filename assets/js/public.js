@@ -93,6 +93,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Diagnostics helper
+    const diagnosticsEl = document.getElementById('emdr-diagnostics');
+    function logDiag(msg) {
+        if (diagnosticsEl) {
+            diagnosticsEl.style.display = 'block';
+            const d = document.createElement('div');
+            d.textContent = msg;
+            diagnosticsEl.appendChild(d);
+        }
+        console.log(msg);
+    }
+
+    // Global error handlers to surface runtime problems
+    window.addEventListener('error', function(evt) {
+        logDiag('Runtime error: ' + (evt.message || evt));
+    });
+    window.addEventListener('unhandledrejection', function(evt) {
+        logDiag('Unhandled promise rejection: ' + (evt.reason && evt.reason.message ? evt.reason.message : JSON.stringify(evt.reason)));
+    });
+
     async function doSearch(query) {
         try {
             // If the query looks like a location string, geocode it to lat/lng using Google Maps Geocoder when available
@@ -118,7 +138,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + searchLat + '&lng=' + searchLng + '&radius=50000';
+            logDiag('Fetching: ' + url);
             const res = await fetch(url, { credentials: 'same-origin' });
+            const contentType = res.headers.get('content-type') || '';
+            if (!res.ok) {
+                const text = await res.text();
+                logDiag('HTTP error ' + res.status + ': ' + text.substring(0, 500));
+                return;
+            }
+            if (!contentType.includes('application/json')) {
+                const text = await res.text();
+                logDiag('Expected JSON but received: ' + text.substring(0, 1000));
+                return;
+            }
             const data = await res.json();
             // Expect data.items (array) and data.locations (array of {lat,lng})
             renderResults(data.items || []);
