@@ -51,12 +51,17 @@ class EMDR_Rest_Controller {
 
         // Query Google Places Text Search (if API key present)
         if ( ! empty( $places_api_key ) ) {
-            $text = rawurlencode( $query ?: 'EMDR therapist' );
+            // Always include EMDR therapy in the search query
+            $base_query = 'EMDR therapist psychotherapy';
+            $location_text = $query ? " in " . $query : "";
+            $text = rawurlencode($base_query . $location_text);
+            
+            // Always use location-based search with radius when coordinates are available
             $location_param = '';
             if ( $lat && $lng ) {
-                $location_param = "&location={$lat},{$lng}&radius=50000"; // 50km radius
+                $location_param = "&location={$lat},{$lng}&radius=50000&rankby=distance"; // 50km radius, ranked by distance
             }
-            $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}{$location_param}&key=" . rawurlencode($places_api_key);
+            $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}{$location_param}&type=health&key=" . rawurlencode($places_api_key);
             $resp = wp_remote_get( $places_url, [ 'timeout' => 10 ] );
             if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
                 $body = wp_remote_retrieve_body( $resp );

@@ -97,11 +97,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const imgHtml = item.photo ? `<img src="${item.photo}" alt="${item.name}" class="emdr-result-photo"/>` : '';
             const phoneHtml = item.phone ? `<div class="emdr-result-phone">${item.phone}</div>` : '';
             const emailHtml = item.email ? `<div class="emdr-result-email">${item.email}</div>` : '';
+            const distanceHtml = item.distance ? `<div class="emdr-result-distance">${(item.distance / 1000).toFixed(1)} km away</div>` : '';
             li.innerHTML = `
                 <div class="emdr-result-left">${imgHtml}</div>
                 <div class="emdr-result-main">
                     <div class="emdr-result-name">${item.name}</div>
                     <div class="emdr-result-address">${item.address || ''}</div>
+                    ${distanceHtml}
                     ${phoneHtml}
                     ${emailHtml}
                 </div>
@@ -163,12 +165,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Ensure we always include 'emdr therapy' in the Places query so we only get therapists
-            let fullQuery = query && query.trim().length > 0 ? query.trim() : '';
-            if (!/emdr/i.test(fullQuery)) {
-                fullQuery = 'emdr therapy' + (fullQuery ? ' in ' + fullQuery : '');
-            }
-            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(fullQuery) + '&lat=' + searchLat + '&lng=' + searchLng + '&radius=50000';
+            // Pass the location query and coordinates separately
+            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + searchLat + '&lng=' + searchLng;
             logDiag('Fetching: ' + url);
             const res = await fetch(url, { credentials: 'same-origin' });
             const contentType = res.headers.get('content-type') || '';
