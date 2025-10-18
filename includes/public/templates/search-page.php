@@ -13,18 +13,22 @@ $map_api_key = $options['map_api_key'] ?? '';
 ?>
 
 
-<div class="emdr-therapist-finder">
-    <h1><?php esc_html_e('Find an EMDR Therapist', 'emdr-therapist-finder'); ?></h1>
-    <form id="emdr-location-form" style="margin-bottom:20px;">
-        <input type="text" id="emdr-location-input" placeholder="Enter your city or location" style="padding:8px;width:250px;max-width:90%;" required />
-        <button type="submit" style="padding:8px 16px;">Search</button>
-    </form>
+<div class="emdr-search-wrapper">
+    <div class="emdr-search-bar">
+        <h1 class="emdr-title"><?php esc_html_e('Find an EMDR Therapist', 'emdr-therapist-finder'); ?></h1>
+        <form id="emdr-location-form" class="emdr-search-form">
+            <input type="text" id="emdr-location-input" placeholder="Search by city or zip…" required />
+            <button type="submit" id="emdr-search-btn"><?php esc_html_e('Search', 'emdr-therapist-finder'); ?></button>
+        </form>
         <!-- Diagnostics output (hidden until populated) -->
-        <div id="emdr-diagnostics" style="display:none;border:1px solid #f2dede;background:#fff7f7;color:#8a1f1f;padding:10px;margin:10px 0;"></div>
-    <div id="emdr-ui-kit-container" style="height: 500px; width: 100%; display: flex;"></div>
-    <div id="results-list" style="margin-top:16px;">
-        <h2><?php esc_html_e('Results', 'emdr-therapist-finder'); ?></h2>
-        <ul id="therapist-results"></ul>
+        <div id="emdr-diagnostics" class="emdr-diagnostics" style="display:none;"></div>
+    </div>
+
+    <div class="emdr-main">
+        <div class="emdr-results" id="emdr-results">
+            <ul id="therapist-results"></ul>
+        </div>
+        <div class="emdr-map" id="emdr-map"></div>
     </div>
 </div>
 
