@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Elements expected in the template (support old and new IDs)
     const searchInput = document.getElementById('therapist-search') || document.getElementById('emdr-location-input');
     const searchButton = document.getElementById('search-button') || (document.querySelector('#emdr-location-form button[type="submit"]') || null);
-    const resultsList = document.getElementById('therapist-results') || document.getElementById('emdr-results') || document.getElementById('results-list') || null;
+    const resultsList = document.getElementById('therapist-results') || (document.getElementById('emdr-results') ? document.getElementById('emdr-results').querySelector('ul#therapist-results') : null) || document.getElementById('results-list') || null;
     const mapContainer = document.getElementById('map') || document.getElementById('emdr-ui-kit-container') || document.getElementById('emdr-map') || null;
 
     // Startup diagnostics: log element presence
@@ -75,10 +75,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let markers = [];
+    let markerIndexByKey = {};
+    let activeCardEl = null;
 
     function clearMarkers() {
         markers.forEach(m => m.setMap(null));
         markers = [];
+    }
+
+    function clearActiveCard() {
+        if (activeCardEl) { activeCardEl.classList.remove('active'); activeCardEl = null; }
     }
 
     function renderResults(items) {
@@ -91,9 +97,11 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsList.innerHTML = '<li>No therapists found.</li>';
             return;
         }
-        items.forEach(item => {
+        items.forEach((item, idx) => {
             const li = document.createElement('li');
-            li.className = 'emdr-result-item';
+            li.className = 'emdr-card';
+            if (item.place_id) li.dataset.placeId = item.place_id;
+            li.dataset.index = String(idx);
             const imgHtml = item.photo ? `<img src="${item.photo}" alt="${item.name}" class="emdr-result-photo"/>` : '';
             const phoneHtml = item.phone ? `<div class="emdr-result-phone">${item.phone}</div>` : '';
             const emailHtml = item.email ? `<div class="emdr-result-email">${item.email}</div>` : '';
@@ -108,17 +116,69 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${emailHtml}
                 </div>
             `;
+            // Hover -> bounce marker briefly
+            li.addEventListener('mouseenter', () => {
+                const m = getMarkerForItem(item, idx);
+                if (m && m.setAnimation) {
+                    m.setAnimation(google.maps.Animation.BOUNCE);
+                    setTimeout(() => m.setAnimation(null), 1400);
+                }
+            });
+            // Click -> open/center marker and highlight card
+            li.addEventListener('click', () => {
+                focusMarkerForItem(item, idx);
+            });
             resultsList.appendChild(li);
         });
     }
 
-    function placeMarkers(locations) {
-        if (!map || !locations) return;
+    function getMarkerForItem(item, idx) {
+        const key = item.place_id || ('idx:' + idx);
+        const mi = markerIndexByKey[key];
+        if (typeof mi === 'number') return markers[mi];
+        return null;
+    }
+
+    function focusMarkerForItem(item, idx) {
+        const marker = getMarkerForItem(item, idx);
+        if (!marker || !map) return;
+        map.panTo(marker.getPosition());
+        map.setZoom(Math.max(map.getZoom(), 13));
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+        setTimeout(() => marker.setAnimation(null), 1400);
+        // highlight the card
+        clearActiveCard();
+        const sel = item.place_id ? `[data-place-id="${item.place_id}"]` : `[data-index="${idx}"]`;
+        const el = resultsList.querySelector(sel);
+        if (el) {
+            el.classList.add('active');
+            activeCardEl = el;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function placeMarkersFromItems(items) {
+        if (!map || !items) return;
         clearMarkers();
-        locations.forEach(loc => {
-            const marker = new google.maps.Marker({ position: loc, map: map });
+        markerIndexByKey = {};
+        const bounds = new google.maps.LatLngBounds();
+        items.forEach((item, idx) => {
+            const lat = item.lat;
+            const lng = item.lng;
+            if (typeof lat !== 'number' || typeof lng !== 'number') return;
+            const pos = { lat, lng };
+            const marker = new google.maps.Marker({ position: pos, map: map, title: item.name || '' });
             markers.push(marker);
+            const key = item.place_id || ('idx:' + idx);
+            markerIndexByKey[key] = markers.length - 1;
+            bounds.extend(pos);
+            marker.addListener('click', () => focusMarkerForItem(item, idx));
         });
+        try {
+            if (!bounds.isEmpty()) {
+                map.fitBounds(bounds);
+            }
+        } catch (e) {}
     }
 
     // Diagnostics helper
@@ -181,9 +241,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             const data = await res.json();
-            // Expect data.items (array) and data.locations (array of {lat,lng})
-            renderResults(data.items || []);
-            placeMarkers(data.locations || []);
+            const items = data.items || [];
+            renderResults(items);
+            placeMarkersFromItems(items);
         } catch (e) {
             console.error('Search error', e);
         }

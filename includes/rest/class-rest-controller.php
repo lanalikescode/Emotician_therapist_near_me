@@ -93,6 +93,8 @@ class EMDR_Rest_Controller {
                             if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
                                 $placeLat = $r['geometry']['location']['lat'];
                                 $placeLng = $r['geometry']['location']['lng'];
+                                $item['lat'] = $placeLat;
+                                $item['lng'] = $placeLng;
                                 $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
                                 // compute distance in meters from search point when available
                                 if ( $lat && $lng ) {
@@ -126,6 +128,8 @@ class EMDR_Rest_Controller {
                                         if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
                                             $dLat = $res['geometry']['location']['lat'];
                                             $dLng = $res['geometry']['location']['lng'];
+                                            $item['lat'] = $dLat;
+                                            $item['lng'] = $dLng;
                                             $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
                                             // if we didn't already compute distance, compute it now
                                             if ( empty($item['distance']) && $lat && $lng ) {
@@ -181,6 +185,8 @@ class EMDR_Rest_Controller {
                                 if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
                                     $placeLat = $r['geometry']['location']['lat'];
                                     $placeLng = $r['geometry']['location']['lng'];
+                                    $item['lat'] = $placeLat;
+                                    $item['lng'] = $placeLng;
                                     $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
                                     if ( $lat && $lng ) {
                                         $R = 6371000;
@@ -210,6 +216,8 @@ class EMDR_Rest_Controller {
                                             if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
                                                 $dLat = $res['geometry']['location']['lat'];
                                                 $dLng = $res['geometry']['location']['lng'];
+                                                $item['lat'] = $dLat;
+                                                $item['lng'] = $dLng;
                                                 $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
                                                 if ( empty($item['distance']) && $lat && $lng ) {
                                                     $R = 6371000;
@@ -273,6 +281,8 @@ class EMDR_Rest_Controller {
                             $gdata = json_decode( $gbody, true );
                             if ( ! empty( $gdata['results'][0]['geometry']['location'] ) ) {
                                 $loc = $gdata['results'][0]['geometry']['location'];
+                                $item['lat'] = $loc['lat'];
+                                $item['lng'] = $loc['lng'];
                                 $locations[] = [ 'lat' => $loc['lat'], 'lng' => $loc['lng'] ];
                             }
                         }
