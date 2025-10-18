@@ -5,7 +5,8 @@
 function emdr_finder_shortcode($atts) {
     // Enqueue necessary scripts and styles
     wp_enqueue_style('emdr-public-style', plugin_dir_url(__FILE__) . '../assets/css/public.css');
-    wp_enqueue_script('emdr-public-script', plugin_dir_url(__FILE__) . '../assets/js/public.js', array('jquery'), null, true);
+    // Disable custom public.js as UI Kit will handle all UI
+    // wp_enqueue_script('emdr-public-script', plugin_dir_url(__FILE__) . '../assets/js/public.js', array('jquery'), null, true);
 
     // Start output buffering
     ob_start();

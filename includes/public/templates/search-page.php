@@ -5,22 +5,23 @@
 
 get_header(); ?>
 
+
 <div class="emdr-therapist-finder">
     <h1><?php esc_html_e('Find an EMDR Therapist', 'emdr-therapist-finder'); ?></h1>
-    
-    <div class="search-bar">
-        <input type="text" id="therapist-search" placeholder="<?php esc_attr_e('Find EMDR therapist in...', 'emdr-therapist-finder'); ?>" />
-        <button id="search-button"><?php esc_html_e('Search', 'emdr-therapist-finder'); ?></button>
-    </div>
-
-    <div id="map" style="height: 400px;"></div>
-
-    <div id="results-list">
-        <h2><?php esc_html_e('Results', 'emdr-therapist-finder'); ?></h2>
-        <ul id="therapist-results"></ul>
-    </div>
+    <gmpx-api-loader key="<?php echo esc_attr(EMDRSettings['mapApiKey'] ?? ''); ?>" solution-channel="GMP_QB_locatorplus_v7_c" region="US">
+        <gmpx-place-list style="height: 500px; width: 100%; display: flex;">
+            <gmpx-place-overview slot="overview"></gmpx-place-overview>
+        </gmpx-place-list>
+    </gmpx-api-loader>
 </div>
 
-<!-- frontend behavior is handled by assets/js/public.js which uses localized EMDRSettings object -->
+<!-- Google Places UI Kit -->
+<script type="module" src="https://unpkg.com/@googlemaps/extended-component-library@latest/dist/extended-component-library/extended-component-library.esm.js"></script>
+<script>
+// Remove custom JS if present
+if (window.EMDRSettings) {
+  // Optionally, you can add custom logic here to sync with WP if needed
+}
+</script>
 
 <?php get_footer(); ?>
