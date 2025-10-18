@@ -21,7 +21,8 @@ require_once EMDR_PLUGIN_DIR . 'includes/class-activator.php';
 require_once EMDR_PLUGIN_DIR . 'includes/class-deactivator.php';
 require_once EMDR_PLUGIN_DIR . 'includes/class-db.php';
 require_once EMDR_PLUGIN_DIR . 'includes/shortcodes.php';
-require_once EMDR_PLUGIN_DIR . 'includes/rest/routes.php';
+require_once EMDR_PLUGIN_DIR . 'includes/rest/class-rest-controller.php';
+// require_once EMDR_PLUGIN_DIR . 'includes/rest/routes.php'; // Disabled to avoid route conflicts
 require_once EMDR_PLUGIN_DIR . 'includes/admin/class-admin.php';
 require_once EMDR_PLUGIN_DIR . 'includes/public/class-public.php';
 

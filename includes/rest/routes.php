@@ -1,25 +1,26 @@
 <?php
 // Register REST routes for the EMDR therapist finder plugin
 
-add_action('rest_api_init', function () {
-    register_rest_route('emdr/v1', '/therapists', array(
-        'methods' => 'GET',
-        'callback' => 'get_therapists',
-        'permission_callback' => '__return_true',
-    ));
+// Disabled: REST routes are now registered via EMDR_Rest_Controller
+// add_action('rest_api_init', function () {
+//     register_rest_route('emdr/v1', '/therapists', array(
+//         'methods' => 'GET',
+//         'callback' => 'get_therapists',
+//         'permission_callback' => '__return_true',
+//     ));
 
-    register_rest_route('emdr/v1', '/therapists/claim', array(
-        'methods' => 'POST',
-        'callback' => 'claim_therapist',
-        'permission_callback' => 'is_user_logged_in',
-    ));
+//     register_rest_route('emdr/v1', '/therapists/claim', array(
+//         'methods' => 'POST',
+//         'callback' => 'claim_therapist',
+//         'permission_callback' => 'is_user_logged_in',
+//     ));
 
-    register_rest_route('emdr/v1', '/therapists/report', array(
-        'methods' => 'POST',
-        'callback' => 'report_issue',
-        'permission_callback' => 'is_user_logged_in',
-    ));
-});
+//     register_rest_route('emdr/v1', '/therapists/report', array(
+//         'methods' => 'POST',
+//         'callback' => 'report_issue',
+//         'permission_callback' => 'is_user_logged_in',
+//     ));
+// });
 
 // Callback function to get therapists based on search criteria
 function get_therapists(WP_REST_Request $request) {
