@@ -46,76 +46,188 @@ class EMDR_Rest_Controller {
     $places_api_key = $options['map_api_key'] ?? ''; // use single Google API key for Maps and Places
     $npi_api_key = $options['npi_api_key'] ?? '';
 
-        $results = [];
-        $locations = [];
+    $results = [];
+    $locations = [];
+    $last_places_url = '';
 
-        // Query Google Places Text Search (if API key present)
+        // Query Google Places when API key present
         if ( ! empty( $places_api_key ) ) {
-            // Always include EMDR therapy in the search query
-            $base_query = 'EMDR therapist psychotherapy';
-            $location_text = $query ? " in " . $query : "";
-            $text = rawurlencode($base_query . $location_text);
-            
-            // Always use location-based search with radius when coordinates are available
-            $location_param = '';
+            // We'll prefer Nearby Search (keyword) when coordinates are available so we get
+            // individual place results (e.g. therapists) near the lat/lng. If no coords,
+            // fallback to a Text Search constructed from the user's query plus EMDR keyword.
+            $keyword = 'EMDR therapist psychotherapy';
+
             if ( $lat && $lng ) {
-                $location_param = "&location={$lat},{$lng}&radius=50000&rankby=distance"; // 50km radius, ranked by distance
-            }
-            $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}{$location_param}&type=health&key=" . rawurlencode($places_api_key);
-            $resp = wp_remote_get( $places_url, [ 'timeout' => 10 ] );
-            if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
-                $body = wp_remote_retrieve_body( $resp );
-                $data = json_decode( $body, true );
-                if ( ! empty( $data['results'] ) ) {
-                    // For each place result, fetch Place Details to get phone, photos, website
-                    $count = 0;
-                    foreach ( $data['results'] as $r ) {
-                        if ( $count++ >= 20 ) break; // limit details requests
-                        $place_id = $r['place_id'] ?? '';
-                        $item = [
-                            'source' => 'google_places',
-                            'name' => $r['name'] ?? '',
-                            'address' => $r['formatted_address'] ?? '',
-                            'place_id' => $place_id,
-                            'phone' => '',
-                            'website' => '',
-                            'photo' => '',
-                        ];
+                // Use Nearby Search with keyword and radius (50km). Nearby Search ignores 'query' but accepts 'keyword' and 'type'.
+                $nearby_url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' . rawurlencode("{$lat},{$lng}") . '&radius=50000&keyword=' . rawurlencode( $keyword ) . '&type=health&key=' . rawurlencode( $places_api_key );
+                $resp = wp_remote_get( $nearby_url, [ 'timeout' => 10 ] );
+                if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
+                    $body = wp_remote_retrieve_body( $resp );
+                    $data = json_decode( $body, true );
+                    if ( ! empty( $data['results'] ) ) {
+                        $count = 0;
+                        foreach ( $data['results'] as $r ) {
+                            if ( $count++ >= 20 ) break;
+                            // Skip obvious administrative/locality results unless the name indicates a therapist
+                            $types = $r['types'] ?? [];
+                            $is_locality = (bool) array_intersect($types, ['locality','political','administrative_area_level_1','administrative_area_level_2','country']);
+                            $name = $r['name'] ?? ($r['vicinity'] ?? '');
+                            $looks_like_therapist = preg_match('/therap|psych|emdr|counsel/i', $name);
+                            $accept_by_type = (bool) array_intersect($types, ['health','doctor','hospital','point_of_interest','establishment']);
+                            if ( $is_locality && ! $looks_like_therapist && ! $accept_by_type ) {
+                                // skip
+                                continue;
+                            }
+                            $place_id = $r['place_id'] ?? '';
+                            $item = [
+                                'source' => 'google_places',
+                                'name' => $r['name'] ?? '',
+                                'address' => $r['vicinity'] ?? ($r['formatted_address'] ?? ''),
+                                'place_id' => $place_id,
+                                'phone' => '',
+                                'website' => '',
+                                'photo' => '',
+                            ];
 
-                        // geometry
-                        if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
-                            $locations[] = [ 'lat' => $r['geometry']['location']['lat'], 'lng' => $r['geometry']['location']['lng'] ];
-                        }
+                            // geometry
+                            if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
+                                $placeLat = $r['geometry']['location']['lat'];
+                                $placeLng = $r['geometry']['location']['lng'];
+                                $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
+                                // compute distance in meters from search point when available
+                                if ( $lat && $lng ) {
+                                    $R = 6371000; // earth radius meters
+                                    $dLat = deg2rad($placeLat - $lat);
+                                    $dLon = deg2rad($placeLng - $lng);
+                                    $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat)) * cos(deg2rad($placeLat)) * sin($dLon/2) * sin($dLon/2);
+                                    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+                                    $distance = $R * $c;
+                                    $item['distance'] = round($distance);
+                                }
+                            }
 
-                        if ( ! empty( $place_id ) ) {
-                            $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photo,geometry&key=' . rawurlencode($places_api_key);
-                            $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
-                            if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
-                                $dbody = wp_remote_retrieve_body( $dresp );
-                                $ddata = json_decode( $dbody, true );
-                                if ( ! empty( $ddata['result'] ) ) {
-                                    $res = $ddata['result'];
-                                    $item['phone'] = $res['formatted_phone_number'] ?? '';
-                                    $item['website'] = $res['website'] ?? '';
-                                    // photo handling: get first photo reference and build photo URL
-                                    if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
-                                        $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
-                                        if ( $photo_ref ) {
-                                            $photo_url = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
-                                            $item['photo'] = $photo_url;
+                            // Fetch details for richer info
+                            if ( ! empty( $place_id ) ) {
+                                $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photos,geometry&key=' . rawurlencode($places_api_key);
+                                $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
+                                if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
+                                    $dbody = wp_remote_retrieve_body( $dresp );
+                                    $ddata = json_decode( $dbody, true );
+                                    if ( ! empty( $ddata['result'] ) ) {
+                                        $res = $ddata['result'];
+                                        $item['phone'] = $res['formatted_phone_number'] ?? '';
+                                        $item['website'] = $res['website'] ?? '';
+                                        if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
+                                            $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
+                                            if ( $photo_ref ) {
+                                                $item['photo'] = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
+                                            }
                                         }
-                                    }
-                                    // override geometry location if present
-                                    if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
-                                        $locations[] = [ 'lat' => $res['geometry']['location']['lat'], 'lng' => $res['geometry']['location']['lng'] ];
+                                        if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
+                                            $dLat = $res['geometry']['location']['lat'];
+                                            $dLng = $res['geometry']['location']['lng'];
+                                            $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
+                                            // if we didn't already compute distance, compute it now
+                                            if ( empty($item['distance']) && $lat && $lng ) {
+                                                $R = 6371000;
+                                                $ddLat = deg2rad($dLat - $lat);
+                                                $ddLon = deg2rad($dLng - $lng);
+                                                $aa = sin($ddLat/2) * sin($ddLat/2) + cos(deg2rad($lat)) * cos(deg2rad($dLat)) * sin($ddLon/2) * sin($ddLon/2);
+                                                $cc = 2 * atan2(sqrt($aa), sqrt(1-$aa));
+                                                $item['distance'] = round($R * $cc);
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        $results[] = $item;
+                            $results[] = $item;
+                        }
                     }
                 }
+                // record which URL we used (redact key later when returning)
+                $last_places_url = $nearby_url;
+            } else {
+                // Fallback to Text Search when no coordinates provided; include EMDR keyword + user query
+                $location_text = $query ? " in " . $query : "";
+                $text = rawurlencode( $keyword . $location_text );
+                $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}&type=health&key=" . rawurlencode($places_api_key);
+                $resp = wp_remote_get( $places_url, [ 'timeout' => 10 ] );
+                if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
+                    $body = wp_remote_retrieve_body( $resp );
+                    $data = json_decode( $body, true );
+                    if ( ! empty( $data['results'] ) ) {
+                            $count = 0;
+                            foreach ( $data['results'] as $r ) {
+                                if ( $count++ >= 20 ) break;
+                                $types = $r['types'] ?? [];
+                                $name = $r['name'] ?? ($r['formatted_address'] ?? '');
+                                $is_locality = (bool) array_intersect($types, ['locality','political','administrative_area_level_1','administrative_area_level_2','country']);
+                                $looks_like_therapist = preg_match('/therap|psych|emdr|counsel/i', $name);
+                                $accept_by_type = (bool) array_intersect($types, ['health','doctor','hospital','point_of_interest','establishment']);
+                                if ( $is_locality && ! $looks_like_therapist && ! $accept_by_type ) {
+                                    continue;
+                                }
+                                $place_id = $r['place_id'] ?? '';
+                                $item = [
+                                    'source' => 'google_places',
+                                    'name' => $r['name'] ?? '',
+                                    'address' => $r['formatted_address'] ?? '',
+                                    'place_id' => $place_id,
+                                    'phone' => '',
+                                    'website' => '',
+                                    'photo' => '',
+                                ];
+                                if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
+                                    $placeLat = $r['geometry']['location']['lat'];
+                                    $placeLng = $r['geometry']['location']['lng'];
+                                    $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
+                                    if ( $lat && $lng ) {
+                                        $R = 6371000;
+                                        $dLat = deg2rad($placeLat - $lat);
+                                        $dLon = deg2rad($placeLng - $lng);
+                                        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat)) * cos(deg2rad($placeLat)) * sin($dLon/2) * sin($dLon/2);
+                                        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+                                        $item['distance'] = round($R * $c);
+                                    }
+                                }
+                                if ( ! empty( $place_id ) ) {
+                                    $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photo,geometry&key=' . rawurlencode($places_api_key);
+                                    $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
+                                    if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
+                                        $dbody = wp_remote_retrieve_body( $dresp );
+                                        $ddata = json_decode( $dbody, true );
+                                        if ( ! empty( $ddata['result'] ) ) {
+                                            $res = $ddata['result'];
+                                            $item['phone'] = $res['formatted_phone_number'] ?? '';
+                                            $item['website'] = $res['website'] ?? '';
+                                            if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
+                                                $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
+                                                if ( $photo_ref ) {
+                                                    $item['photo'] = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
+                                                }
+                                            }
+                                            if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
+                                                $dLat = $res['geometry']['location']['lat'];
+                                                $dLng = $res['geometry']['location']['lng'];
+                                                $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
+                                                if ( empty($item['distance']) && $lat && $lng ) {
+                                                    $R = 6371000;
+                                                    $ddLat = deg2rad($dLat - $lat);
+                                                    $ddLon = deg2rad($dLng - $lng);
+                                                    $aa = sin($ddLat/2) * sin($ddLat/2) + cos(deg2rad($lat)) * cos(deg2rad($dLat)) * sin($ddLon/2) * sin($ddLon/2);
+                                                    $cc = 2 * atan2(sqrt($aa), sqrt(1-$aa));
+                                                    $item['distance'] = round($R * $cc);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                $results[] = $item;
+                            }
+                        }
+                }
+                $last_places_url = $places_url;
             }
         }
 
@@ -171,7 +283,13 @@ class EMDR_Rest_Controller {
             }
         }
 
-        return rest_ensure_response([ 'items' => $results, 'locations' => $locations ]);
+        // sanitize last_places_url to remove API key before returning
+        $debug = [];
+        if ( ! empty( $last_places_url ) ) {
+            $debug['places_url'] = preg_replace('/(key=)[^&]+/', '$1[REDACTED]', $last_places_url);
+        }
+
+        return rest_ensure_response([ 'items' => $results, 'locations' => $locations, 'debug' => $debug ]);
     }
 
     public function get_therapist($request) {
