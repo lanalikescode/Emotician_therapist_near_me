@@ -6,9 +6,14 @@
 get_header(); ?>
 
 
+
+<?php
+$options = get_option('emdr_options', []);
+$map_api_key = $options['map_api_key'] ?? '';
+?>
 <div class="emdr-therapist-finder">
     <h1><?php esc_html_e('Find an EMDR Therapist', 'emdr-therapist-finder'); ?></h1>
-    <gmpx-api-loader key="<?php echo esc_attr(EMDRSettings['mapApiKey'] ?? ''); ?>" solution-channel="GMP_QB_locatorplus_v7_c" region="US">
+    <gmpx-api-loader key="<?php echo esc_attr($map_api_key); ?>" solution-channel="GMP_QB_locatorplus_v7_c" region="US">
         <gmpx-place-list style="height: 500px; width: 100%; display: flex;">
             <gmpx-place-overview slot="overview"></gmpx-place-overview>
         </gmpx-place-list>
