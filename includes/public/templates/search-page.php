@@ -27,7 +27,8 @@ $map_api_key = $options['map_api_key'] ?? '';
     </gmpx-api-loader>
 </div>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@googlemaps/extended-component-library/dist/extended-component-library/extended-component-library.esm.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo esc_attr($map_api_key); ?>&libraries=places"></script>
+<script src="https://maps.googleapis.com/maps/api/extended-component-library.js"></script>
 <script>
 // Remove custom JS if present
 // Custom search: always search for 'emdr therapy in [location]'
