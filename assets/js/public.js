@@ -1,4 +1,8 @@
+// EMDR Therapist Finder - Public Frontend Script
+console.log('EMDR public.js loaded');
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded fired');
     // Diagnostics helper - define first so it's available everywhere
     const diagnosticsEl = document.getElementById('emdr-diagnostics');
     function logDiag(msg) {
@@ -189,21 +193,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Wire up UI
-    if (searchButton) {
-        searchButton.addEventListener('click', function(e) {
-            e.preventDefault && e.preventDefault();
-            const q = (searchInput && searchInput.value) ? searchInput.value : '';
-            doSearch(q);
-        });
-    } else if (document.getElementById('emdr-location-form')) {
-        document.getElementById('emdr-location-form').addEventListener('submit', function(e) {
+    // Wire up UI - form submission should prevent default and trigger search
+    const form = document.getElementById('emdr-location-form');
+    if (form) {
+        logDiag('Form found, attaching submit handler');
+        form.addEventListener('submit', function(e) {
             e.preventDefault();
-            const input = document.getElementById('emdr-location-input');
-            const q = (input && input.value) ? input.value : '';
+            e.stopPropagation();
+            const q = (searchInput && searchInput.value) ? searchInput.value : '';
+            logDiag('Form submitted with query: ' + q);
             doSearch(q);
+            return false;
         });
     } else {
-        logDiag('No search UI found (no button and no form).');
+        logDiag('Form #emdr-location-form not found');
+    }
+    
+    // Also add button click handler as backup
+    if (searchButton) {
+        logDiag('Search button found, attaching click handler');
+        searchButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const q = (searchInput && searchInput.value) ? searchInput.value : '';
+            logDiag('Button clicked with query: ' + q);
+            doSearch(q);
+            return false;
+        });
     }
 });
