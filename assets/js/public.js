@@ -85,6 +85,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Attach Google Places Autocomplete if available
+    (function attachAutocomplete(){
+        try {
+            const input = document.getElementById('emdr-location-input');
+            if (input && typeof google !== 'undefined' && google.maps && google.maps.places) {
+                const ac = new google.maps.places.Autocomplete(input, { types: ['geocode'] });
+                ac.addListener('place_changed', function() {
+                    const place = ac.getPlace();
+                    const q = (place && place.formatted_address) ? place.formatted_address : (input.value || '');
+                    // Trigger search immediately on selection
+                    doSearch(q);
+                });
+            }
+        } catch (e) { /* noop */ }
+    })();
+
     // Fetch
     async function doSearch(query) {
         try {

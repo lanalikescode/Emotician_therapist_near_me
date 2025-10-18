@@ -68,13 +68,13 @@ class EMDR_Rest_Controller {
             }
         }
 
-        $options = get_option('emdr_options', []);
-        $places_api_key = $options['map_api_key'] ?? '';
+    $options = get_option('emdr_options', []);
+    $places_api_key = $options['map_api_key'] ?? '';
 
-        $debug = [ 'npi' => [], 'matching' => [] ];
+    $debug = [ 'npi' => [], 'matching' => [ 'tried' => 0, 'matched' => 0, 'via' => [ 'cache' => 0, 'phone' => 0, 'name_address' => 0, 'website' => 0 ] ] ];
 
         // 1) Fetch NPI results (source of truth)
-        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&address_purpose=LOCATION&country_code=US&limit=100';
+    $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&address_purpose=LOCATION&country_code=US&limit=100';
         if ( !empty($zip) ) {
             $npi_url .= '&postal_code=' . rawurlencode($zip);
         } elseif ( !empty($city) ) {
@@ -104,23 +104,33 @@ class EMDR_Rest_Controller {
 
         // 2) For each NPI row, attempt to resolve to Google Place to get photo/ratings
         $items = [];
-        $match_threshold = 0.75; // only include high-confidence matches
+    $match_threshold = 0.70; // slightly relaxed to capture solid matches
         if ( !empty($npi_results) ) {
             $count = 0;
             foreach ( $npi_results as $r ) {
                 if ( $count++ >= 100 ) { break; }
+        $debug['matching']['tried']++;
 
                 $basic = $r['basic'] ?? [];
-                $addresses = $r['addresses'] ?? [];
+        $addresses = $r['addresses'] ?? [];
                 $npi_number = $r['number'] ?? '';
-                $name = $basic['organization_name'] ?? ($basic['name'] ?? '');
-                $credentials = $basic['credential'] ?? '';
-                $addr_line1 = $addresses[0]['address_1'] ?? '';
-                $addr_line2 = $addresses[0]['address_2'] ?? '';
-                $addr_city = $addresses[0]['city'] ?? '';
-                $addr_state = $addresses[0]['state'] ?? '';
-                $addr_zip = $addresses[0]['postal_code'] ?? '';
-                $addr_phone = $addresses[0]['telephone_number'] ?? '';
+        // Prefer LOCATION address (NPI returns both LOCATION and MAILING); pick LOCATION if present
+        $addr_index = 0;
+        foreach (($addresses ?: []) as $i => $a) { if (isset($a['address_purpose']) && strtoupper($a['address_purpose']) === 'LOCATION') { $addr_index = $i; break; } }
+        $addr = $addresses[$addr_index] ?? [];
+
+        // Build display name: organization_name or person "first last"
+        $person_first = $basic['first_name'] ?? '';
+        $person_last = $basic['last_name'] ?? '';
+        $name = $basic['organization_name'] ?? trim(($person_first . ' ' . $person_last));
+        $credentials = $basic['credential'] ?? '';
+        $addr_line1 = $addr['address_1'] ?? '';
+        $addr_line2 = $addr['address_2'] ?? '';
+        $addr_city = $addr['city'] ?? '';
+        $addr_state = $addr['state'] ?? '';
+        $addr_zip = $addr['postal_code'] ?? '';
+        $addr_phone_raw = $addr['telephone_number'] ?? '';
+        $addr_phone = $addr_phone_raw;
                 $website = $basic['website'] ?? '';
                 $address_str = trim( $addr_line1 . ( $addr_line2 ? (' ' . $addr_line2) : '' ) . ', ' . $addr_city . ', ' . $addr_state . ' ' . $addr_zip );
 
@@ -138,13 +148,14 @@ class EMDR_Rest_Controller {
                 $existing_link = $this->get_place_link( $npi_number );
                 if ( $existing_link && !empty($existing_link['place_id']) && !empty($places_api_key) ) {
                     $place = $this->fetch_place_details($existing_link['place_id'], $places_api_key);
-                    if ( $place ) { $matched_via = 'cache'; $match_conf = max(0.9, floatval($existing_link['match_confidence'])); }
+                    if ( $place ) { $matched_via = 'cache'; $match_conf = max(0.9, floatval($existing_link['match_confidence'])); $debug['matching']['via']['cache']++; }
                 }
 
                 if ( ! $place && ! empty($places_api_key) ) {
                     // Step 1: Phone match via Find Place
                     if ( ! empty($addr_phone) ) {
                         $input_phone = preg_replace('/[^\d\+]/', '', $addr_phone);
+                        if ( strlen($input_phone) === 10 ) { $input_phone = '+1' . $input_phone; }
                         if ( ! empty($input_phone) ) {
                             $find_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=' . rawurlencode($input_phone) . '&inputtype=phonenumber&fields=place_id&key=' . rawurlencode($places_api_key);
                             $fresp = wp_remote_get( $find_url, [ 'timeout' => 8 ] );
@@ -153,7 +164,7 @@ class EMDR_Rest_Controller {
                                 $fdata = json_decode($fbody, true);
                                 if ( !empty($fdata['candidates'][0]['place_id']) ) {
                                     $place = $this->fetch_place_details($fdata['candidates'][0]['place_id'], $places_api_key);
-                                    if ( $place ) { $matched_via = 'phone'; $match_conf = 1.0; }
+                                    if ( $place ) { $matched_via = 'phone'; $match_conf = 1.0; $debug['matching']['via']['phone']++; }
                                 }
                             }
                         }
@@ -163,14 +174,14 @@ class EMDR_Rest_Controller {
                     if ( ! $place ) {
                         $q = trim($name . ' ' . $addr_line1 . ' ' . $addr_city . ' ' . $addr_state . ' ' . $addr_zip);
                         if ( ! empty($q) ) {
-                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&key=' . rawurlencode($places_api_key);
+                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&region=us&key=' . rawurlencode($places_api_key);
                             $tresp = wp_remote_get( $text_url, [ 'timeout' => 8 ] );
                             if ( is_array($tresp) && ! is_wp_error($tresp) ) {
                                 $tbody = wp_remote_retrieve_body($tresp);
                                 $tdata = json_decode($tbody, true);
                                 if ( !empty($tdata['results'][0]['place_id']) ) {
                                     $place = $this->fetch_place_details($tdata['results'][0]['place_id'], $places_api_key);
-                                    if ( $place ) { $matched_via = 'name_address'; $match_conf = 0.85; }
+                                    if ( $place ) { $matched_via = 'name_address'; $match_conf = 0.85; $debug['matching']['via']['name_address']++; }
                                 }
                             }
                         }
@@ -181,14 +192,14 @@ class EMDR_Rest_Controller {
                         $host = parse_url($website, PHP_URL_HOST);
                         if ( $host ) {
                             $q = $host . ' ' . $addr_city;
-                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&key=' . rawurlencode($places_api_key);
+                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&region=us&key=' . rawurlencode($places_api_key);
                             $tresp = wp_remote_get( $text_url, [ 'timeout' => 8 ] );
                             if ( is_array($tresp) && ! is_wp_error($tresp) ) {
                                 $tbody = wp_remote_retrieve_body($tresp);
                                 $tdata = json_decode($tbody, true);
                                 if ( !empty($tdata['results'][0]['place_id']) ) {
                                     $place = $this->fetch_place_details($tdata['results'][0]['place_id'], $places_api_key);
-                                    if ( $place ) { $matched_via = 'website'; $match_conf = 0.7; }
+                                    if ( $place ) { $matched_via = 'website'; $match_conf = 0.7; $debug['matching']['via']['website']++; }
                                 }
                             }
                         }
@@ -211,6 +222,7 @@ class EMDR_Rest_Controller {
 
                 // Only include high-confidence matches
                 if ( $match_conf >= $match_threshold ) {
+                    $debug['matching']['matched']++;
                     $items[] = [
                         'source' => 'npi_merged',
                         'npi_id' => $npi_number,
@@ -232,6 +244,48 @@ class EMDR_Rest_Controller {
                 }
             }
         }
+
+        // Fallback: if we have zero matches (e.g., missing Places key or strict match), return NPI-only items so users still see results
+        if ( empty($items) && !empty($npi_results) ) {
+            $debug['matching']['fallback_npi_only'] = true;
+            $fallback = [];
+            $lim = 0;
+            foreach ( $npi_results as $r ) {
+                if ( $lim++ >= 50 ) break;
+                $basic = $r['basic'] ?? [];
+                $addresses = $r['addresses'] ?? [];
+                $addr_index = 0; foreach (($addresses ?: []) as $i => $a) { if (isset($a['address_purpose']) && strtoupper($a['address_purpose']) === 'LOCATION') { $addr_index = $i; break; } }
+                $addr = $addresses[$addr_index] ?? [];
+                $person_first = $basic['first_name'] ?? '';
+                $person_last = $basic['last_name'] ?? '';
+                $name = $basic['organization_name'] ?? trim(($person_first . ' ' . $person_last));
+                $credentials = $basic['credential'] ?? '';
+                $address_str = trim( ($addr['address_1'] ?? '') . ( !empty($addr['address_2']) ? (' ' . $addr['address_2']) : '' ) . ', ' . ($addr['city'] ?? '') . ', ' . ($addr['state'] ?? '') . ' ' . ($addr['postal_code'] ?? '') );
+                $fallback[] = [
+                    'source' => 'npi',
+                    'npi_id' => $r['number'] ?? '',
+                    'place_id' => '',
+                    'match_confidence' => 0.0,
+                    'matched_via' => '',
+                    'name' => $name,
+                    'credentials' => $credentials,
+                    'address' => $address_str,
+                    'phone' => $addr['telephone_number'] ?? '',
+                    'website' => $basic['website'] ?? '',
+                    'photo' => '',
+                    'photo_attribution' => '',
+                    'rating' => null,
+                    'review_count' => null,
+                    'open_now' => null,
+                    'emdr_verified' => false,
+                ];
+            }
+            $items = $fallback;
+        }
+
+        $debug['summary'] = [
+            'google_places_key_present' => !empty($places_api_key),
+        ];
 
         return rest_ensure_response([ 'items' => $items, 'debug' => $debug ]);
     }

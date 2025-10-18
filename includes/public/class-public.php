@@ -14,8 +14,13 @@ class EMDR_Therapist_Finder_Public {
         $map_api_key = $options['map_api_key'] ?? '';
         $npi_api_key = $options['npi_api_key'] ?? '';
 
-        // We no longer load the Google Maps JS on the frontend; all Places lookups happen server-side.
-        wp_enqueue_script('emdr-public-script', $plugin_base . 'assets/js/public.js', ['jquery'], null, true);
+        // Load Google Maps JS only for Places Autocomplete (no map UI on frontend)
+        if ( ! empty( $map_api_key ) ) {
+            wp_enqueue_script('google-maps', 'https://maps.googleapis.com/maps/api/js?key=' . rawurlencode($map_api_key) . '&libraries=places', [], null, true);
+            wp_enqueue_script('emdr-public-script', $plugin_base . 'assets/js/public.js', ['jquery', 'google-maps'], null, true);
+        } else {
+            wp_enqueue_script('emdr-public-script', $plugin_base . 'assets/js/public.js', ['jquery'], null, true);
+        }
 
         wp_localize_script('emdr-public-script', 'EMDRSettings', [
             'restUrl' => esc_url_raw( rest_url('emdr/v1/') ),
