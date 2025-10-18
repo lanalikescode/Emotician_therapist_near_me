@@ -21,20 +21,11 @@ $map_api_key = $options['map_api_key'] ?? '';
     </form>
         <!-- Diagnostics output (hidden until populated) -->
         <div id="emdr-diagnostics" style="display:none;border:1px solid #f2dede;background:#fff7f7;color:#8a1f1f;padding:10px;margin:10px 0;"></div>
-    <div id="emdr-ui-kit-container" style="height: 500px; width: 100%; display: flex;"></div>
     <div id="results-list" style="margin-top:16px;">
         <h2><?php esc_html_e('Results', 'emdr-therapist-finder'); ?></h2>
-        <ul id="therapist-results"></ul>
+        <ul id="therapist-results" class="results-list"></ul>
     </div>
 </div>
-
-
-<script>
-    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
-        key: "<?php echo esc_attr($map_api_key); ?>",
-        v: "weekly"
-    });
-</script>
 
 <script type="module">
     // Minimal module placeholder: real initialization happens in `assets/js/public.js`.

@@ -46,257 +46,273 @@ class EMDR_Rest_Controller {
     public function get_therapists($request) {
         $params = $request->get_query_params();
         $query = isset($params['query']) ? sanitize_text_field( $params['query'] ) : '';
-        $lat = isset($params['lat']) ? floatval($params['lat']) : null;
-        $lng = isset($params['lng']) ? floatval($params['lng']) : null;
+        $location = isset($params['location']) ? sanitize_text_field( $params['location'] ) : '';
+        $city = isset($params['city']) ? sanitize_text_field( $params['city'] ) : '';
+        $state = isset($params['state']) ? sanitize_text_field( $params['state'] ) : '';
+        $zip = isset($params['zip']) ? sanitize_text_field( $params['zip'] ) : '';
+        $radius = isset($params['radius']) ? sanitize_text_field( $params['radius'] ) : '50km';
+
+        // Parse fallback location if only a single 'location' or 'query' string is provided
+        if ( empty($city) && empty($state) && empty($zip) ) {
+            $loc = !empty($location) ? $location : $query;
+            if ( !empty($loc) ) {
+                $loc = trim($loc);
+                if ( preg_match('/^\d{5}$/', $loc) ) {
+                    $zip = $loc;
+                } elseif ( preg_match('/^\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*$/', $loc, $m) ) {
+                    $city = trim($m[1]);
+                    $state = strtoupper(trim($m[2]));
+                } else {
+                    $city = $loc;
+                }
+            }
+        }
 
         $options = get_option('emdr_options', []);
-    $places_api_key = $options['map_api_key'] ?? ''; // use single Google API key for Maps and Places
-    $npi_api_key = $options['npi_api_key'] ?? '';
+        $places_api_key = $options['map_api_key'] ?? '';
 
-    $results = [];
-    $locations = [];
-    $last_places_url = '';
+        $debug = [ 'npi' => [], 'matching' => [] ];
 
-        // Query Google Places when API key present
-        if ( ! empty( $places_api_key ) ) {
-            // We'll prefer Nearby Search (keyword) when coordinates are available so we get
-            // individual place results (e.g. therapists) near the lat/lng. If no coords,
-            // fallback to a Text Search constructed from the user's query plus EMDR keyword.
-            $keyword = 'EMDR therapist psychotherapy';
-
-            if ( $lat && $lng ) {
-                // Use Nearby Search with keyword and radius (50km). Nearby Search ignores 'query' but accepts 'keyword' and 'type'.
-                $nearby_url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' . rawurlencode("{$lat},{$lng}") . '&radius=50000&keyword=' . rawurlencode( $keyword ) . '&type=health&key=' . rawurlencode( $places_api_key );
-                $resp = wp_remote_get( $nearby_url, [ 'timeout' => 10 ] );
-                if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
-                    $body = wp_remote_retrieve_body( $resp );
-                    $data = json_decode( $body, true );
-                    if ( ! empty( $data['results'] ) ) {
-                        $count = 0;
-                        foreach ( $data['results'] as $r ) {
-                            if ( $count++ >= 20 ) break;
-                            // Skip obvious administrative/locality results unless the name indicates a therapist
-                            $types = $r['types'] ?? [];
-                            $is_locality = (bool) array_intersect($types, ['locality','political','administrative_area_level_1','administrative_area_level_2','country']);
-                            $name = $r['name'] ?? ($r['vicinity'] ?? '');
-                            $looks_like_therapist = preg_match('/therap|psych|emdr|counsel/i', $name);
-                            $accept_by_type = (bool) array_intersect($types, ['health','doctor','hospital','point_of_interest','establishment']);
-                            if ( $is_locality && ! $looks_like_therapist && ! $accept_by_type ) {
-                                // skip
-                                continue;
-                            }
-                            $place_id = $r['place_id'] ?? '';
-                            $item = [
-                                'source' => 'google_places',
-                                'name' => $r['name'] ?? '',
-                                'address' => $r['vicinity'] ?? ($r['formatted_address'] ?? ''),
-                                'place_id' => $place_id,
-                                'phone' => '',
-                                'website' => '',
-                                'photo' => '',
-                            ];
-
-                            // geometry
-                            if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
-                                $placeLat = $r['geometry']['location']['lat'];
-                                $placeLng = $r['geometry']['location']['lng'];
-                                $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
-                                // compute distance in meters from search point when available
-                                if ( $lat && $lng ) {
-                                    $R = 6371000; // earth radius meters
-                                    $dLat = deg2rad($placeLat - $lat);
-                                    $dLon = deg2rad($placeLng - $lng);
-                                    $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat)) * cos(deg2rad($placeLat)) * sin($dLon/2) * sin($dLon/2);
-                                    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-                                    $distance = $R * $c;
-                                    $item['distance'] = round($distance);
-                                }
-                            }
-
-                            // Fetch details for richer info
-                            if ( ! empty( $place_id ) ) {
-                                $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photos,geometry&key=' . rawurlencode($places_api_key);
-                                $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
-                                if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
-                                    $dbody = wp_remote_retrieve_body( $dresp );
-                                    $ddata = json_decode( $dbody, true );
-                                    if ( ! empty( $ddata['result'] ) ) {
-                                        $res = $ddata['result'];
-                                        $item['phone'] = $res['formatted_phone_number'] ?? '';
-                                        $item['website'] = $res['website'] ?? '';
-                                        if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
-                                            $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
-                                            if ( $photo_ref ) {
-                                                $item['photo'] = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
-                                            }
-                                        }
-                                        if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
-                                            $dLat = $res['geometry']['location']['lat'];
-                                            $dLng = $res['geometry']['location']['lng'];
-                                            $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
-                                            // if we didn't already compute distance, compute it now
-                                            if ( empty($item['distance']) && $lat && $lng ) {
-                                                $R = 6371000;
-                                                $ddLat = deg2rad($dLat - $lat);
-                                                $ddLon = deg2rad($dLng - $lng);
-                                                $aa = sin($ddLat/2) * sin($ddLat/2) + cos(deg2rad($lat)) * cos(deg2rad($dLat)) * sin($ddLon/2) * sin($ddLon/2);
-                                                $cc = 2 * atan2(sqrt($aa), sqrt(1-$aa));
-                                                $item['distance'] = round($R * $cc);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            $results[] = $item;
-                        }
-                    }
-                }
-                // record which URL we used (redact key later when returning)
-                $last_places_url = $nearby_url;
-            } else {
-                // Fallback to Text Search when no coordinates provided; include EMDR keyword + user query
-                $location_text = $query ? " in " . $query : "";
-                $text = rawurlencode( $keyword . $location_text );
-                $places_url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$text}&type=health&key=" . rawurlencode($places_api_key);
-                $resp = wp_remote_get( $places_url, [ 'timeout' => 10 ] );
-                if ( is_array( $resp ) && ! is_wp_error( $resp ) ) {
-                    $body = wp_remote_retrieve_body( $resp );
-                    $data = json_decode( $body, true );
-                    if ( ! empty( $data['results'] ) ) {
-                            $count = 0;
-                            foreach ( $data['results'] as $r ) {
-                                if ( $count++ >= 20 ) break;
-                                $types = $r['types'] ?? [];
-                                $name = $r['name'] ?? ($r['formatted_address'] ?? '');
-                                $is_locality = (bool) array_intersect($types, ['locality','political','administrative_area_level_1','administrative_area_level_2','country']);
-                                $looks_like_therapist = preg_match('/therap|psych|emdr|counsel/i', $name);
-                                $accept_by_type = (bool) array_intersect($types, ['health','doctor','hospital','point_of_interest','establishment']);
-                                if ( $is_locality && ! $looks_like_therapist && ! $accept_by_type ) {
-                                    continue;
-                                }
-                                $place_id = $r['place_id'] ?? '';
-                                $item = [
-                                    'source' => 'google_places',
-                                    'name' => $r['name'] ?? '',
-                                    'address' => $r['formatted_address'] ?? '',
-                                    'place_id' => $place_id,
-                                    'phone' => '',
-                                    'website' => '',
-                                    'photo' => '',
-                                ];
-                                if ( isset( $r['geometry']['location']['lat'] ) && isset( $r['geometry']['location']['lng'] ) ) {
-                                    $placeLat = $r['geometry']['location']['lat'];
-                                    $placeLng = $r['geometry']['location']['lng'];
-                                    $locations[] = [ 'lat' => $placeLat, 'lng' => $placeLng ];
-                                    if ( $lat && $lng ) {
-                                        $R = 6371000;
-                                        $dLat = deg2rad($placeLat - $lat);
-                                        $dLon = deg2rad($placeLng - $lng);
-                                        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat)) * cos(deg2rad($placeLat)) * sin($dLon/2) * sin($dLon/2);
-                                        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
-                                        $item['distance'] = round($R * $c);
-                                    }
-                                }
-                                if ( ! empty( $place_id ) ) {
-                                    $details_url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=name,formatted_address,formatted_phone_number,website,photo,geometry&key=' . rawurlencode($places_api_key);
-                                    $dresp = wp_remote_get( $details_url, [ 'timeout' => 10 ] );
-                                    if ( is_array( $dresp ) && ! is_wp_error( $dresp ) ) {
-                                        $dbody = wp_remote_retrieve_body( $dresp );
-                                        $ddata = json_decode( $dbody, true );
-                                        if ( ! empty( $ddata['result'] ) ) {
-                                            $res = $ddata['result'];
-                                            $item['phone'] = $res['formatted_phone_number'] ?? '';
-                                            $item['website'] = $res['website'] ?? '';
-                                            if ( ! empty( $res['photos'] ) && is_array( $res['photos'] ) ) {
-                                                $photo_ref = $res['photos'][0]['photo_reference'] ?? '';
-                                                if ( $photo_ref ) {
-                                                    $item['photo'] = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($places_api_key);
-                                                }
-                                            }
-                                            if ( isset( $res['geometry']['location']['lat'] ) && isset( $res['geometry']['location']['lng'] ) ) {
-                                                $dLat = $res['geometry']['location']['lat'];
-                                                $dLng = $res['geometry']['location']['lng'];
-                                                $locations[] = [ 'lat' => $dLat, 'lng' => $dLng ];
-                                                if ( empty($item['distance']) && $lat && $lng ) {
-                                                    $R = 6371000;
-                                                    $ddLat = deg2rad($dLat - $lat);
-                                                    $ddLon = deg2rad($dLng - $lng);
-                                                    $aa = sin($ddLat/2) * sin($ddLat/2) + cos(deg2rad($lat)) * cos(deg2rad($dLat)) * sin($ddLon/2) * sin($ddLon/2);
-                                                    $cc = 2 * atan2(sqrt($aa), sqrt(1-$aa));
-                                                    $item['distance'] = round($R * $cc);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                $results[] = $item;
-                            }
-                        }
-                }
-                $last_places_url = $places_url;
+        // 1) Fetch NPI results (source of truth)
+        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&address_purpose=LOCATION&country_code=US&limit=100';
+        if ( !empty($zip) ) {
+            $npi_url .= '&postal_code=' . rawurlencode($zip);
+        } elseif ( !empty($city) ) {
+            $npi_url .= '&city=' . rawurlencode($city);
+            if ( !empty($state) ) {
+                $npi_url .= '&state=' . rawurlencode($state);
             }
+        } elseif ( !empty($query) ) {
+            // Fallback if only a query is provided
+            $npi_url .= '&organization_name=' . rawurlencode($query);
         }
 
-        // Query NPI Registry (NPPES) - https://npiregistry.cms.hhs.gov/api/
-        // The NPI API doesn't require a key but supports a version param. We'll search by provider name/location.
-        $npi_url = 'https://npiregistry.cms.hhs.gov/api/?version=2.1&limit=20';
-        if ( ! empty( $query ) ) {
-            $npi_url .= '&organization_name=' . rawurlencode( $query );
+        $debug['npi']['request_url'] = $npi_url;
+        $npi_resp = wp_remote_get( $npi_url, [ 'timeout' => 12 ] );
+        if ( is_wp_error( $npi_resp ) ) {
+            return rest_ensure_response([ 'items' => [], 'debug' => [ 'error' => $npi_resp->get_error_message(), 'npi' => $debug['npi'] ] ]);
         }
-        $npi_resp = wp_remote_get( $npi_url, [ 'timeout' => 10 ] );
-        if ( is_array( $npi_resp ) && ! is_wp_error( $npi_resp ) ) {
-            $body = wp_remote_retrieve_body( $npi_resp );
-            $data = json_decode( $body, true );
-            if ( ! empty( $data['results'] ) ) {
-                $count = 0;
-                foreach ( $data['results'] as $r ) {
-                    if ( $count++ >= 20 ) break;
-                    $basic = $r['basic'] ?? [];
-                    $addresses = $r['addresses'] ?? [];
-                    $address_str = '';
-                    $phone = '';
-                    if ( ! empty( $addresses ) ) {
-                        $addr = $addresses[0];
-                        $address_str = trim( ($addr['address_1'] ?? '') . ' ' . ($addr['address_2'] ?? '') . ', ' . ($addr['city'] ?? '') . ', ' . ($addr['state'] ?? '') );
-                        $phone = $addr['telephone_number'] ?? '';
+        $npi_body = wp_remote_retrieve_body( $npi_resp );
+        $npi_data = json_decode( $npi_body, true );
+        if ( isset($npi_data['Errors']) ) {
+            $debug['npi']['errors'] = $npi_data['Errors'];
+        }
+        $npi_results = $npi_data['results'] ?? [];
+
+        // Helper to ensure place_link table exists (lightweight, no-op if already exists)
+        $this->maybe_create_place_link_table();
+
+        // 2) For each NPI row, attempt to resolve to Google Place to get photo/ratings
+        $items = [];
+        $match_threshold = 0.75; // only include high-confidence matches
+        if ( !empty($npi_results) ) {
+            $count = 0;
+            foreach ( $npi_results as $r ) {
+                if ( $count++ >= 100 ) { break; }
+
+                $basic = $r['basic'] ?? [];
+                $addresses = $r['addresses'] ?? [];
+                $npi_number = $r['number'] ?? '';
+                $name = $basic['organization_name'] ?? ($basic['name'] ?? '');
+                $credentials = $basic['credential'] ?? '';
+                $addr_line1 = $addresses[0]['address_1'] ?? '';
+                $addr_line2 = $addresses[0]['address_2'] ?? '';
+                $addr_city = $addresses[0]['city'] ?? '';
+                $addr_state = $addresses[0]['state'] ?? '';
+                $addr_zip = $addresses[0]['postal_code'] ?? '';
+                $addr_phone = $addresses[0]['telephone_number'] ?? '';
+                $website = $basic['website'] ?? '';
+                $address_str = trim( $addr_line1 . ( $addr_line2 ? (' ' . $addr_line2) : '' ) . ', ' . $addr_city . ', ' . $addr_state . ' ' . $addr_zip );
+
+                $place = null;
+                $matched_via = '';
+                $match_conf = 0.0;
+                $place_attrib = '';
+                $place_photo_url = '';
+                $place_rating = null;
+                $place_reviews = null;
+                $place_open_now = null;
+                $place_website = '';
+
+                // Shortcut: if we already have a mapping, use it (still fetch fresh details, but skip search)
+                $existing_link = $this->get_place_link( $npi_number );
+                if ( $existing_link && !empty($existing_link['place_id']) && !empty($places_api_key) ) {
+                    $place = $this->fetch_place_details($existing_link['place_id'], $places_api_key);
+                    if ( $place ) { $matched_via = 'cache'; $match_conf = max(0.9, floatval($existing_link['match_confidence'])); }
+                }
+
+                if ( ! $place && ! empty($places_api_key) ) {
+                    // Step 1: Phone match via Find Place
+                    if ( ! empty($addr_phone) ) {
+                        $input_phone = preg_replace('/[^\d\+]/', '', $addr_phone);
+                        if ( ! empty($input_phone) ) {
+                            $find_url = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=' . rawurlencode($input_phone) . '&inputtype=phonenumber&fields=place_id&key=' . rawurlencode($places_api_key);
+                            $fresp = wp_remote_get( $find_url, [ 'timeout' => 8 ] );
+                            if ( is_array($fresp) && ! is_wp_error($fresp) ) {
+                                $fbody = wp_remote_retrieve_body($fresp);
+                                $fdata = json_decode($fbody, true);
+                                if ( !empty($fdata['candidates'][0]['place_id']) ) {
+                                    $place = $this->fetch_place_details($fdata['candidates'][0]['place_id'], $places_api_key);
+                                    if ( $place ) { $matched_via = 'phone'; $match_conf = 1.0; }
+                                }
+                            }
+                        }
                     }
-                    $item = [
-                        'source' => 'npi',
-                        'name' => $basic['organization_name'] ?? ($basic['name'] ?? ''),
+
+                    // Step 2: Name + full address via Text Search
+                    if ( ! $place ) {
+                        $q = trim($name . ' ' . $addr_line1 . ' ' . $addr_city . ' ' . $addr_state . ' ' . $addr_zip);
+                        if ( ! empty($q) ) {
+                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&key=' . rawurlencode($places_api_key);
+                            $tresp = wp_remote_get( $text_url, [ 'timeout' => 8 ] );
+                            if ( is_array($tresp) && ! is_wp_error($tresp) ) {
+                                $tbody = wp_remote_retrieve_body($tresp);
+                                $tdata = json_decode($tbody, true);
+                                if ( !empty($tdata['results'][0]['place_id']) ) {
+                                    $place = $this->fetch_place_details($tdata['results'][0]['place_id'], $places_api_key);
+                                    if ( $place ) { $matched_via = 'name_address'; $match_conf = 0.85; }
+                                }
+                            }
+                        }
+                    }
+
+                    // Step 3: Website domain search
+                    if ( ! $place && ! empty($website) ) {
+                        $host = parse_url($website, PHP_URL_HOST);
+                        if ( $host ) {
+                            $q = $host . ' ' . $addr_city;
+                            $text_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' . rawurlencode($q) . '&key=' . rawurlencode($places_api_key);
+                            $tresp = wp_remote_get( $text_url, [ 'timeout' => 8 ] );
+                            if ( is_array($tresp) && ! is_wp_error($tresp) ) {
+                                $tbody = wp_remote_retrieve_body($tresp);
+                                $tdata = json_decode($tbody, true);
+                                if ( !empty($tdata['results'][0]['place_id']) ) {
+                                    $place = $this->fetch_place_details($tdata['results'][0]['place_id'], $places_api_key);
+                                    if ( $place ) { $matched_via = 'website'; $match_conf = 0.7; }
+                                }
+                            }
+                        }
+                    }
+
+                    if ( $place ) {
+                        $place_photo_url = $place['photo_url'] ?? '';
+                        $place_attrib = $place['photo_attribution'] ?? '';
+                        $place_rating = $place['rating'] ?? null;
+                        $place_reviews = $place['user_ratings_total'] ?? null;
+                        $place_open_now = $place['open_now'] ?? null;
+                        $place_website = $place['website'] ?? '';
+
+                        // persist mapping light-weight
+                        if ( !empty($npi_number) && !empty($place['place_id']) ) {
+                            $this->upsert_place_link( $npi_number, $place['place_id'], $matched_via, $match_conf );
+                        }
+                    }
+                }
+
+                // Only include high-confidence matches
+                if ( $match_conf >= $match_threshold ) {
+                    $items[] = [
+                        'source' => 'npi_merged',
+                        'npi_id' => $npi_number,
+                        'place_id' => $place['place_id'] ?? '',
+                        'match_confidence' => $match_conf,
+                        'matched_via' => $matched_via,
+                        'name' => $name,
+                        'credentials' => $credentials,
                         'address' => $address_str,
-                        'phone' => $phone,
-                        'npi' => $r['number'] ?? '',
-                        'photo' => '',
-                        'website' => '',
+                        'phone' => $addr_phone,
+                        'website' => !empty($website) ? $website : ($place_website ?: ''),
+                        'photo' => $place_photo_url,
+                        'photo_attribution' => $place_attrib,
+                        'rating' => $place_rating,
+                        'review_count' => $place_reviews,
+                        'open_now' => $place_open_now,
+                        'emdr_verified' => false,
                     ];
-
-                    // Try to geocode the NPI address to get lat/lng (if Google API key available)
-                    if ( ! empty( $places_api_key ) && ! empty( $address_str ) ) {
-                        $geocode_url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' . rawurlencode( $address_str ) . '&key=' . rawurlencode( $places_api_key );
-                        $gresp = wp_remote_get( $geocode_url, [ 'timeout' => 10 ] );
-                        if ( is_array( $gresp ) && ! is_wp_error( $gresp ) ) {
-                            $gbody = wp_remote_retrieve_body( $gresp );
-                            $gdata = json_decode( $gbody, true );
-                            if ( ! empty( $gdata['results'][0]['geometry']['location'] ) ) {
-                                $loc = $gdata['results'][0]['geometry']['location'];
-                                $locations[] = [ 'lat' => $loc['lat'], 'lng' => $loc['lng'] ];
-                            }
-                        }
-                    }
-
-                    $results[] = $item;
                 }
             }
         }
 
-        // sanitize last_places_url to remove API key before returning
-        $debug = [];
-        if ( ! empty( $last_places_url ) ) {
-            $debug['places_url'] = preg_replace('/(key=)[^&]+/', '$1[REDACTED]', $last_places_url);
-        }
+        return rest_ensure_response([ 'items' => $items, 'debug' => $debug ]);
+    }
 
-        return rest_ensure_response([ 'items' => $results, 'locations' => $locations, 'debug' => $debug ]);
+    private function fetch_place_details( $place_id, $api_key ) {
+        if ( empty($place_id) || empty($api_key) ) return null;
+        $fields = 'place_id,website,photos,rating,user_ratings_total,opening_hours';
+        $url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' . rawurlencode($place_id) . '&fields=' . rawurlencode($fields) . '&key=' . rawurlencode($api_key);
+        $resp = wp_remote_get( $url, [ 'timeout' => 10 ] );
+        if ( is_wp_error( $resp ) ) return null;
+        $body = wp_remote_retrieve_body( $resp );
+        $data = json_decode( $body, true );
+        if ( empty($data['result']) ) return null;
+        $res = $data['result'];
+        $photo_url = '';
+        $attrib = '';
+        if ( !empty($res['photos'][0]['photo_reference']) ) {
+            $photo_ref = $res['photos'][0]['photo_reference'];
+            $photo_url = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=' . rawurlencode($photo_ref) . '&key=' . rawurlencode($api_key);
+            if ( !empty($res['photos'][0]['html_attributions'][0]) ) {
+                $attrib = wp_kses_post( $res['photos'][0]['html_attributions'][0] );
+            }
+        }
+        return [
+            'place_id' => $place_id,
+            'website' => $res['website'] ?? '',
+            'rating' => $res['rating'] ?? null,
+            'user_ratings_total' => $res['user_ratings_total'] ?? null,
+            'open_now' => isset($res['opening_hours']['open_now']) ? (bool)$res['opening_hours']['open_now'] : null,
+            'photo_url' => $photo_url,
+            'photo_attribution' => $attrib,
+        ];
+    }
+
+    private function maybe_create_place_link_table() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'emdr_place_link';
+        $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        if ( $exists === $table ) return;
+        $charset_collate = $wpdb->get_charset_collate();
+        $sql = "CREATE TABLE $table (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            npi_id VARCHAR(20) NOT NULL,
+            place_id VARCHAR(128) NOT NULL,
+            matched_via VARCHAR(32) NOT NULL,
+            match_confidence FLOAT NOT NULL DEFAULT 0,
+            verified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY npi_unique (npi_id)
+        ) $charset_collate;";
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    private function get_place_link( $npi_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'emdr_place_link';
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT place_id, matched_via, match_confidence FROM $table WHERE npi_id = %s", $npi_id ), ARRAY_A );
+        return $row;
+    }
+
+    private function upsert_place_link( $npi_id, $place_id, $matched_via, $match_confidence ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'emdr_place_link';
+        $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE npi_id = %s", $npi_id ) );
+        if ( $existing ) {
+            $wpdb->update( $table, [
+                'place_id' => $place_id,
+                'matched_via' => $matched_via,
+                'match_confidence' => $match_confidence,
+                'verified_at' => current_time('mysql'),
+            ], [ 'id' => $existing ] );
+        } else {
+            $wpdb->insert( $table, [
+                'npi_id' => $npi_id,
+                'place_id' => $place_id,
+                'matched_via' => $matched_via,
+                'match_confidence' => $match_confidence,
+                'verified_at' => current_time('mysql'),
+            ] );
+        }
     }
 
     public function get_therapist($request) {

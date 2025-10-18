@@ -1,9 +1,8 @@
-// EMDR Therapist Finder - Public Frontend Script
+// EMDR Therapist Finder - Public Frontend Script (no map)
 console.log('EMDR public.js loaded');
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded fired');
-    // Diagnostics helper - define first so it's available everywhere
     const diagnosticsEl = document.getElementById('emdr-diagnostics');
     function logDiag(msg) {
         if (diagnosticsEl) {
@@ -15,86 +14,25 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(msg);
     }
 
-    // Elements expected in the template (support old and new IDs)
+    // Elements
     const searchInput = document.getElementById('therapist-search') || document.getElementById('emdr-location-input');
     const searchButton = document.getElementById('search-button') || (document.querySelector('#emdr-location-form button[type="submit"]') || null);
-    const resultsList = document.getElementById('therapist-results') || document.getElementById('emdr-results') || document.getElementById('results-list') || null;
-    const mapContainer = document.getElementById('map') || document.getElementById('emdr-ui-kit-container') || document.getElementById('emdr-map') || null;
-
-    // Startup diagnostics: log element presence
-    logDiag('Element presence: searchInput=' + !!searchInput + ', searchButton=' + !!searchButton + ', resultsList=' + !!resultsList + ', mapContainer=' + !!mapContainer);
-
-    // If resultsList missing but a results container div exists, create or find a UL inside it
+    let resultsList = document.getElementById('therapist-results') || document.getElementById('emdr-results') || null;
     if (!resultsList) {
         const resultsContainer = document.getElementById('results-list');
         if (resultsContainer) {
-            let ul = resultsContainer.querySelector('ul#therapist-results');
-            if (!ul) {
-                ul = document.createElement('ul');
-                ul.id = 'therapist-results';
-                resultsContainer.appendChild(ul);
-            }
+            const ul = document.createElement('ul');
+            ul.id = 'therapist-results';
+            ul.className = 'results-list';
+            resultsContainer.appendChild(ul);
             resultsList = ul;
-            logDiag('Created therapist-results UL inside #results-list');
         }
     }
 
-    // Default to Los Angeles if geolocation not available
-    const DEFAULT_LOCATION = { lat: 34.052235, lng: -118.243683 };
-    let currentLocation = DEFAULT_LOCATION;
-    let map;
-
-    function initMap(center) {
-        if (typeof google === 'undefined' || !mapContainer) return;
-        map = new google.maps.Map(mapContainer, {
-            zoom: 10,
-            center: center || DEFAULT_LOCATION,
-        });
-    }
-
-    // Initialize map when Google Maps is ready or fallback to default
-    function onGoogleMapsReady() {
-        // Try browser geolocation first
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(position) {
-                currentLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-                initMap(currentLocation);
-                if (searchInput) {
-                    try { searchInput.placeholder = 'Find EMDR therapist in...'; } catch (e) { logDiag('Unable to set placeholder: ' + e.message); }
-                } else {
-                    logDiag('searchInput element not found; skipping placeholder set');
-                }
-            }, function(err) {
-                initMap(DEFAULT_LOCATION);
-            }, { timeout: 5000 });
-        } else {
-            initMap(DEFAULT_LOCATION);
-        }
-    }
-
-    if (typeof google !== 'undefined' && google.maps) {
-        onGoogleMapsReady();
-    } else {
-        // If google maps is loaded asynchronously, wait for it
-        // Some installs may not call init callback; try to poll for google.maps for a short while
-        var gmPollAttempts = 0;
-        var gmPoll = setInterval(function() {
-            gmPollAttempts++;
-            if (typeof google !== 'undefined' && google.maps) {
-                clearInterval(gmPoll);
-                onGoogleMapsReady();
-            } else if (gmPollAttempts > 20) { // ~10 seconds
-                clearInterval(gmPoll);
-                initMap(DEFAULT_LOCATION);
-            }
-        }, 500);
-    }
-
-    let markers = [];
-
-    function clearMarkers() {
-        markers.forEach(m => m.setMap(null));
-        markers = [];
+    // UI rendering for merged NPI + Place items
+    function initialsAvatar(name) {
+        const initials = (name || '').split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        return `<div class="emdr-avatar">${initials || 'EM'}</div>`;
     }
 
     function renderResults(items) {
@@ -109,68 +47,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         items.forEach(item => {
             const li = document.createElement('li');
-            li.className = 'emdr-result-item';
-            const imgHtml = item.photo ? `<img src="${item.photo}" alt="${item.name}" class="emdr-result-photo"/>` : '';
-            const phoneHtml = item.phone ? `<div class="emdr-result-phone">${item.phone}</div>` : '';
-            const emailHtml = item.email ? `<div class="emdr-result-email">${item.email}</div>` : '';
-            const distanceHtml = item.distance ? `<div class="emdr-result-distance">${(item.distance / 1000).toFixed(1)} km away</div>` : '';
+            li.className = 'emdr-card';
+            const photo = item.photo ? `<img class="emdr-card-photo" src="${item.photo}" alt="${item.name}">` : initialsAvatar(item.name);
+            const nameLine = `${item.name || ''}${item.credentials ? ', ' + item.credentials : ''}`;
+            const ratingHtml = (item.rating ? `<div class="emdr-rating"><span class="stars" data-rating="${item.rating}"></span> <span class="num">${item.rating.toFixed(1)} (${item.review_count || 0})</span></div>` : '');
+            const phoneHtml = item.phone ? `<a class="emdr-link" href="tel:${item.phone.replace(/[^\d\+]/g,'')}">${item.phone}</a>` : '';
+            const websiteHtml = item.website ? `<a class="emdr-link" href="${item.website}" target="_blank" rel="noopener">Website</a>` : '';
+            const attribution = item.photo ? `<div class="emdr-attrib">Photo from Google ${item.photo_attribution ? ' · ' + item.photo_attribution : ''}</div>` : '';
+            const emdrBadge = `<div class="emdr-badge">${item.emdr_verified ? 'EMDR verified' : 'EMDR likely'}</div>`;
             li.innerHTML = `
-                <div class="emdr-result-left">${imgHtml}</div>
-                <div class="emdr-result-main">
-                    <div class="emdr-result-name">${item.name}</div>
-                    <div class="emdr-result-address">${item.address || ''}</div>
-                    ${distanceHtml}
-                    ${phoneHtml}
-                    ${emailHtml}
+                <div class="emdr-card-left">${photo}</div>
+                <div class="emdr-card-main">
+                    <div class="emdr-card-name">${nameLine}</div>
+                    ${emdrBadge}
+                    <div class="emdr-card-address">${item.address || ''}</div>
+                    <div class="emdr-card-actions">
+                        ${phoneHtml}
+                        ${websiteHtml}
+                    </div>
+                    ${ratingHtml}
+                    ${attribution}
                 </div>
             `;
             resultsList.appendChild(li);
         });
-    }
 
-    function placeMarkers(locations) {
-        if (!map || !locations) return;
-        clearMarkers();
-        locations.forEach(loc => {
-            const marker = new google.maps.Marker({ position: loc, map: map });
-            markers.push(marker);
+        // Render stars from data-rating
+        resultsList.querySelectorAll('.stars').forEach(el => {
+            const r = parseFloat(el.getAttribute('data-rating') || '0');
+            const full = Math.floor(r);
+            const half = r - full >= 0.5;
+            let stars = '';
+            for (let i = 0; i < full; i++) stars += '★';
+            if (half) stars += '☆';
+            while (stars.length < 5) stars += '☆';
+            el.textContent = stars;
         });
     }
 
-    // Global error handlers to surface runtime problems
-    window.addEventListener('error', function(evt) {
-        logDiag('Runtime error: ' + (evt.message || evt));
-    });
-    window.addEventListener('unhandledrejection', function(evt) {
-        logDiag('Unhandled promise rejection: ' + (evt.reason && evt.reason.message ? evt.reason.message : JSON.stringify(evt.reason)));
-    });
-
+    // Fetch
     async function doSearch(query) {
         try {
-            // If the query looks like a location string, geocode it to lat/lng using Google Maps Geocoder when available
-            let searchLat = currentLocation.lat;
-            let searchLng = currentLocation.lng;
-            if (query && typeof google !== 'undefined' && google.maps) {
-                const geocoder = new google.maps.Geocoder();
-                const geocodeResult = await new Promise((resolve) => {
-                    geocoder.geocode({ address: query }, function(results, status) {
-                        if (status === 'OK' && results[0]) {
-                            resolve(results[0].geometry.location);
-                        } else {
-                            resolve(null);
-                        }
-                    });
-                });
-                if (geocodeResult) {
-                    searchLat = geocodeResult.lat();
-                    searchLng = geocodeResult.lng();
-                    // center the map on the geocoded location
-                    if (map) map.setCenter({ lat: searchLat, lng: searchLng });
-                }
-            }
-
-            // Pass the location query and coordinates separately
-            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + searchLat + '&lng=' + searchLng;
+            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?location=' + encodeURIComponent(query);
             logDiag('Fetching: ' + url);
             const res = await fetch(url, { credentials: 'same-origin' });
             const contentType = res.headers.get('content-type') || '';
@@ -185,38 +103,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             const data = await res.json();
-            // Expect data.items (array) and data.locations (array of {lat,lng})
             renderResults(data.items || []);
-            placeMarkers(data.locations || []);
         } catch (e) {
             console.error('Search error', e);
         }
     }
 
-    // Wire up UI - form submission should prevent default and trigger search
     const form = document.getElementById('emdr-location-form');
     if (form) {
-        logDiag('Form found, attaching submit handler');
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             e.stopPropagation();
             const q = (searchInput && searchInput.value) ? searchInput.value : '';
-            logDiag('Form submitted with query: ' + q);
             doSearch(q);
             return false;
         });
-    } else {
-        logDiag('Form #emdr-location-form not found');
     }
-    
-    // Also add button click handler as backup
     if (searchButton) {
-        logDiag('Search button found, attaching click handler');
         searchButton.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             const q = (searchInput && searchInput.value) ? searchInput.value : '';
-            logDiag('Button clicked with query: ' + q);
             doSearch(q);
             return false;
         });
