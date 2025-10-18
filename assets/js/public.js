@@ -5,6 +5,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const resultsList = document.getElementById('therapist-results') || document.getElementById('emdr-results') || document.getElementById('results-list') || null;
     const mapContainer = document.getElementById('map') || document.getElementById('emdr-ui-kit-container') || document.getElementById('emdr-map') || null;
 
+    // Startup diagnostics: log element presence
+    logDiag('Element presence: searchInput=' + !!searchInput + ', searchButton=' + !!searchButton + ', resultsList=' + !!resultsList + ', mapContainer=' + !!mapContainer);
+
+    // If resultsList missing but a results container div exists, create or find a UL inside it
+    if (!resultsList) {
+        const resultsContainer = document.getElementById('results-list');
+        if (resultsContainer) {
+            let ul = resultsContainer.querySelector('ul#therapist-results');
+            if (!ul) {
+                ul = document.createElement('ul');
+                ul.id = 'therapist-results';
+                resultsContainer.appendChild(ul);
+            }
+            resultsList = ul;
+            logDiag('Created therapist-results UL inside #results-list');
+        }
+    }
+
     // Default to Los Angeles if geolocation not available
     const DEFAULT_LOCATION = { lat: 34.052235, lng: -118.243683 };
     let currentLocation = DEFAULT_LOCATION;
@@ -145,7 +163,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(query) + '&lat=' + searchLat + '&lng=' + searchLng + '&radius=50000';
+            // Ensure we always include 'emdr therapy' in the Places query so we only get therapists
+            let fullQuery = query && query.trim().length > 0 ? query.trim() : '';
+            if (!/emdr/i.test(fullQuery)) {
+                fullQuery = 'emdr therapy' + (fullQuery ? ' in ' + fullQuery : '');
+            }
+            const url = (EMDRSettings && EMDRSettings.restUrl ? EMDRSettings.restUrl : '/wp-json/') + 'therapists?query=' + encodeURIComponent(fullQuery) + '&lat=' + searchLat + '&lng=' + searchLng + '&radius=50000';
             logDiag('Fetching: ' + url);
             const res = await fetch(url, { credentials: 'same-origin' });
             const contentType = res.headers.get('content-type') || '';

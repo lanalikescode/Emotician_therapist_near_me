@@ -22,6 +22,10 @@ $map_api_key = $options['map_api_key'] ?? '';
         <!-- Diagnostics output (hidden until populated) -->
         <div id="emdr-diagnostics" style="display:none;border:1px solid #f2dede;background:#fff7f7;color:#8a1f1f;padding:10px;margin:10px 0;"></div>
     <div id="emdr-ui-kit-container" style="height: 500px; width: 100%; display: flex;"></div>
+    <div id="results-list" style="margin-top:16px;">
+        <h2><?php esc_html_e('Results', 'emdr-therapist-finder'); ?></h2>
+        <ul id="therapist-results"></ul>
+    </div>
 </div>
 
 
